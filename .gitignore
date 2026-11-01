@@ -1,0 +1,38 @@
+# Frontend build artifacts (built by docker/Dockerfile.web / npm run build)
+web/dist/
+
+# Frontend dependencies
+web/node_modules/
+
+# Playwright e2e artifacts: HTML report, traces/videos, test results and the
+# generated run manifests. They are per-run scratch, and a committed report is
+# a report of a run nobody is looking at.
+web/playwright-report/
+web/test-results/
+web/e2e/.nvr-run.json
+
+# Media the running installation writes (segments, clips, snapshots, the
+# sqlite dev database) and the ONNX model the detector image exports at build
+# time. Neither is source, and the model is a 12 MB binary.
+data/
+models/
+*.onnx
+
+# Local deployment config: holds JWT_SECRET / NVR_SECRET_KEY / WORKER_TOKEN.
+# Only .env.example is committed.
+.env
+
+# scripts/coverage.sh working files
+.coverage-*.out
+
+# Python packaging / test scratch
+__pycache__/
+.pytest_cache/
+.detector-build/
+detector/*.egg-info/
+
+# Local scratch built by scripts/ (fixture downloads, e2e stacks)
+.tmp/
+testdata/bus.jpg
+testdata/yolov8n.pt
+testdata/yolov8n.onnx
