@@ -98,6 +98,57 @@ func TestUpsertOpenDedupesTheSameKey(t *testing.T) {
 	}
 }
 
+// TestUpsertOneEventAcrossThreeSignals is the dedupe rule in the shape the
+// worker actually produces: open, extend, close all carry the same event_key,
+// and the installation must see one event, not three.
+func TestUpsertOneEventAcrossThreeSignals(t *testing.T) {
+	st := newTestStore(t)
+	camera := seedCamera(t, st, "front-door")
+
+	open := openInput(camera.ID, minutesAgo(10))
+	event, created, err := st.Events.UpsertByEventKey(ctx(), open)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if !created {
+		t.Fatal("expected the first signal to create the event")
+	}
+
+	for _, signal := range []EventInput{
+		{EventKey: event.EventKey, CameraID: camera.ID, Action: models.SignalActionExtend,
+			Rule: models.ZoneRuleIntrusion, ZoneID: "driveway", Severity: 3,
+			Classes: []string{"person", "car"}, TS: minutesAgo(8)},
+		{EventKey: event.EventKey, CameraID: camera.ID, Action: models.SignalActionClose,
+			TS: minutesAgo(6)},
+	} {
+		if _, _, err := st.Events.UpsertByEventKey(ctx(), signal); err != nil {
+			t.Fatalf("%s: %v", signal.Action, err)
+		}
+	}
+
+	var count int64
+	if err := st.DB.Model(&models.Event{}).Count(&count).Error; err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected one event across three signals, got %d", count)
+	}
+
+	stored, err := st.Events.GetByID(event.ID)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if stored.SignalCount != 3 {
+		t.Fatalf("expected 3 signals on the one row, got %d", stored.SignalCount)
+	}
+	if !stored.StartedAt.Equal(event.StartedAt) {
+		t.Fatalf("the open owns the window's start: %v", stored.StartedAt)
+	}
+	if stored.Open {
+		t.Fatal("the close must have closed the event")
+	}
+}
+
 func TestUpsertExtendAccumulates(t *testing.T) {
 	st := newTestStore(t)
 	camera := seedCamera(t, st, "front-door")
@@ -158,6 +209,45 @@ func TestUpsertExtendAccumulates(t *testing.T) {
 	}
 	if !after.EndedAt.Equal(extended.EndedAt) {
 		t.Fatalf("a stale extend moved ended_at: %v -> %v", extended.EndedAt, after.EndedAt)
+	}
+}
+
+// TestUpsertSeverityIsAMonotoneMax: an extend can raise severity, never lower
+// it. The event console sorts by severity, and a trailing low-severity box
+// must not quiet a loiter that turned into an intrusion.
+func TestUpsertSeverityIsAMonotoneMax(t *testing.T) {
+	st := newTestStore(t)
+	camera := seedCamera(t, st, "front-door")
+
+	open := openInput(camera.ID, minutesAgo(12))
+	open.Severity = 4
+	event, _, err := st.Events.UpsertByEventKey(ctx(), open)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if event.Severity != 4 {
+		t.Fatalf("expected the open's severity 4, got %d", event.Severity)
+	}
+
+	quieter := EventInput{EventKey: event.EventKey, CameraID: camera.ID,
+		Action: models.SignalActionExtend, Severity: 2, TS: minutesAgo(10)}
+	afterQuiet, _, err := st.Events.UpsertByEventKey(ctx(), quieter)
+	if err != nil {
+		t.Fatalf("extend at severity 2: %v", err)
+	}
+	if afterQuiet.Severity != 4 {
+		t.Fatalf("a lower-severity extend lowered severity to %d", afterQuiet.Severity)
+	}
+
+	louder := quieter
+	louder.Severity = 5
+	louder.TS = minutesAgo(9)
+	afterLoud, _, err := st.Events.UpsertByEventKey(ctx(), louder)
+	if err != nil {
+		t.Fatalf("extend at severity 5: %v", err)
+	}
+	if afterLoud.Severity != 5 {
+		t.Fatalf("expected severity to rise to 5, got %d", afterLoud.Severity)
 	}
 }
 

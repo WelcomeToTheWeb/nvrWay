@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 1 | 1 | 88 | 20 |
+| 0 | 0 | 1 | 88 | 21 |
 
 Total cards: **110**. In Progress limit: **2**.
 
@@ -18,12 +18,7 @@ _empty_
 
 ## Review — built, not yet verified
 
-
-### Step 6 — Events, clips, snapshots, webhooks
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S6-03`](kanban/cards/S6-03.md) | Event upsert semantics: open/extend/close on the server clock | S1-10 |
+_empty_
 
 ## Blocked
 
@@ -213,6 +208,12 @@ _empty_
 | [`S1-12`](kanban/cards/S1-12.md) | Store: users, roles, sessions, sso_providers, audit | S1-08, S1-09 |
 | [`S1-13`](kanban/cards/S1-13.md) | main.go boot order + router with /health | S1-01, S1-08 |
 | [`S1-14`](kanban/cards/S1-14.md) | Step 1 suite green in golang:1.26 (go build + go test ./...) | S1-01, S1-02, S1-03, S1-04, S1-05, S1-06, S1-07, S1-08, S1-09, S1-10, S1-11, S1-12, S1-13 |
+
+### Step 6 — Events, clips, snapshots, webhooks
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S6-03`](kanban/cards/S6-03.md) | Event upsert semantics: open/extend/close on the server clock | S1-10 |
 
 ### Process — Repo mechanics
 
