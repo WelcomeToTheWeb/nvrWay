@@ -83,7 +83,12 @@ func (s *SessionStore) Rotate(old *models.Session, newTokenHash string, expiresA
 
 // ErrSessionRotated is reuse: the token presented has already been rotated, so
 // whoever is presenting it is replaying an old credential.
-var ErrSessionRotated = errors.New("session already rotated")
+//
+// The sentinel lives in models, next to the Session row it describes: the store
+// answers it when a rotation loses its guard, and auth reads it when it decides
+// whether a presented token is a replay. The name is kept here for the store's
+// own callers.
+var ErrSessionRotated = models.ErrSessionRotated
 
 // Revoke closes one session.
 func (s *SessionStore) Revoke(id string) error {
