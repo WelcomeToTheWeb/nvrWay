@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 88 | 21 |
+| 0 | 0 | 1 | 86 | 24 |
 
-Total cards: **110**. In Progress limit: **2**.
+Total cards: **111**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -45,8 +45,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S2-01`](kanban/cards/S2-01.md) | auth/jwt.go: HS256 access + refresh with rotation and reuse detection | S1-06, S1-12 |
-| [`S2-02`](kanban/cards/S2-02.md) | auth/argon2.go: password hash + verify | — |
 | [`S2-03`](kanban/cards/S2-03.md) | store/bootstrap.go: seed roles + break-glass admin, recorded in settings | S1-11, S1-12, S2-02 |
 | [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
 | [`S2-05`](kanban/cards/S2-05.md) | sso/testidp: in-repo test IdP | S2-04 |
@@ -209,6 +207,13 @@ _empty_
 | [`S1-13`](kanban/cards/S1-13.md) | main.go boot order + router with /health | S1-01, S1-08 |
 | [`S1-14`](kanban/cards/S1-14.md) | Step 1 suite green in golang:1.26 (go build + go test ./...) | S1-01, S1-02, S1-03, S1-04, S1-05, S1-06, S1-07, S1-08, S1-09, S1-10, S1-11, S1-12, S1-13 |
 
+### Step 2 — Auth: JWT, break-glass admin, OIDC, WebSocket
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S2-01`](kanban/cards/S2-01.md) | auth/jwt.go: HS256 access + refresh with rotation and reuse detection | S1-06, S1-12 |
+| [`S2-02`](kanban/cards/S2-02.md) | auth/argon2.go: password hash + verify | — |
+
 ### Step 6 — Events, clips, snapshots, webhooks
 
 | Card | Title | Depends |
@@ -223,6 +228,7 @@ _empty_
 | [`P-01`](kanban/cards/P-01.md) | Create the GitHub remote and push main | P-00 |
 | [`P-03`](kanban/cards/P-03.md) | Fix the red store test: empty-subject account lookup | — |
 | [`P-04`](kanban/cards/P-04.md) | Keep the board honest (move cards, record evidence) | P-00 |
+| [`P-05`](kanban/cards/P-05.md) | 'Track server/models: .gitignore''s models/ pattern ignored a Go package' | S0-05, S1-03, S1-04, S1-05, S1-06, S1-07 |
 
 ## Board health
 

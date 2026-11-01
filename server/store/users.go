@@ -66,7 +66,7 @@ func (s *UserStore) GetByEmail(email string) (*models.User, error) {
 // FindByProvider fetches the JIT account for a provider's subject: the same
 // person signing in twice must land on one account.
 //
-// Both halves of the pair are required. The local rows carry provider_id = ''
+// Both halves of the pair are required. The local rows carry provider_id = ”
 // (the schema's default: a password account has no subject), so an unguarded
 // `provider = ? AND provider_id = ?` answers a local account to any assertion
 // with no `sub` — the JIT door would open for an IdP that sent no subject.

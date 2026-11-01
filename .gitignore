@@ -14,8 +14,13 @@ web/e2e/.nvr-run.json
 # Media the running installation writes (segments, clips, snapshots, the
 # sqlite dev database) and the ONNX model the detector image exports at build
 # time. Neither is source, and the model is a 12 MB binary.
+#
+# The model directory is anchored to the repo root on purpose: unanchored,
+# `models/` also matched `server/models/`, which is a Go package, and Step 1's
+# models package went untracked for exactly that reason (card P-05). A pattern
+# that ignores source is worse than no pattern.
 data/
-models/
+/models/
 *.onnx
 
 # Local deployment config: holds JWT_SECRET / NVR_SECRET_KEY / WORKER_TOKEN.

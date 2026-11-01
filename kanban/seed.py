@@ -2074,6 +2074,23 @@ card(
     "Convention lives in docs/kanban.md.",
 )
 
+card(
+    "P-05",
+    "process",
+    "Track server/models: .gitignore's models/ pattern ignored a Go package",
+    "backlog",
+    [".gitignore", "server/models/"],
+    ["S0-05", "S1-03", "S1-04", "S1-05", "S1-06", "S1-07"],
+    "The plan's Step 0 line says .gitignore adds `models/`, meaning the detector's ONNX export directory. Unanchored, the pattern also matched `server/models/`, so the entire Step 1 models package (18 files) was never committed: the pushed tree cannot build, because every `nvr/server/models` import resolves to nothing. Anchor the artifact pattern to the repo root (`/models/`, `*.onnx`) and commit the package.",
+    [
+        "server/models/*.go tracked (18 files: 14 models + json helpers + 3 test files)",
+        "the detector model directory stays ignored (`/models/`, `*.onnx`)",
+        "a fresh clone builds: go build ./... and go test ./... exit 0 on the tracked tree",
+    ],
+    "git ls-files server/models | wc -l && git clone --quiet $PWD /tmp/nvrclone && cd /tmp/nvrclone/server && go build ./...",
+    "Found while staging Step 2 (2026-11-01): `git add server/models` answered \"paths are ignored by one of your .gitignore files\". S1-03..S1-07 are Done with green suite output quoted — the code existed and passed; it was simply never in git. P-04 (board honesty) covers exactly this failure mode.",
+)
+
 # ----------------------------------------------------------------------------------
 # Emit
 # ----------------------------------------------------------------------------------
