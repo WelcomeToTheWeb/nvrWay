@@ -65,7 +65,18 @@ func (s *UserStore) GetByEmail(email string) (*models.User, error) {
 
 // FindByProvider fetches the JIT account for a provider's subject: the same
 // person signing in twice must land on one account.
+//
+// Both halves of the pair are required. The local rows carry provider_id = ''
+// (the schema's default: a password account has no subject), so an unguarded
+// `provider = ? AND provider_id = ?` answers a local account to any assertion
+// with no `sub` — the JIT door would open for an IdP that sent no subject.
+// An empty half is not a lookup, it is a scan, so it answers not-found. The
+// contract gate in sso/ refuses a missing subject too; this is the second line,
+// because the store is the thing that hands out accounts.
 func (s *UserStore) FindByProvider(provider, providerID string) (*models.User, error) {
+	if provider == "" || providerID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var u models.User
 	if err := s.db.Preload("Roles").
 		First(&u, "provider = ? AND provider_id = ?", provider, providerID).Error; err != nil {

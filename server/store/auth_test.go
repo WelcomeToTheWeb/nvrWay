@@ -76,6 +76,17 @@ func TestAccountLookupShapes(t *testing.T) {
 	if _, err := st.Users.FindByProvider(models.ProviderLocal, ""); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("expected no account for an empty subject, got %v", err)
 	}
+
+	// The guard is on both halves of the pair. A row exists for every account's
+	// provider value, so a lookup that names a provider and no subject is a scan
+	// on that provider's rows — and the same scan with no provider is a scan on
+	// all of them. Neither is an identity lookup, so neither resolves one.
+	if _, err := st.Users.FindByProvider("", "subject-1"); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected no account for an empty provider, got %v", err)
+	}
+	if _, err := st.Users.FindByProvider("", ""); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("expected no account for an empty pair, got %v", err)
+	}
 }
 
 func TestAccountPasswordHashSurvivesProfileEdits(t *testing.T) {

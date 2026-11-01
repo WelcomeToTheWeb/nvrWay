@@ -7,52 +7,17 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 15 | 1 | 89 | 3 |
+| 0 | 1 | 1 | 88 | 20 |
 
 Total cards: **110**. In Progress limit: **2**.
 
 
 ## In Progress
 
-
-### Step 1 — Config, models, store, migrations
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S1-14`](kanban/cards/S1-14.md) | Step 1 suite green in golang:1.26 (go build + go test ./...) | S1-01, S1-02, S1-03, S1-04, S1-05, S1-06, S1-07, S1-08, S1-09, S1-10, S1-11, S1-12, S1-13 |
-
-### Process — Repo mechanics
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`P-04`](kanban/cards/P-04.md) | Keep the board honest (move cards, record evidence) | P-00 |
+_empty_
 
 ## Review — built, not yet verified
 
-
-### Step 0 — Repo scaffold
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S0-06`](kanban/cards/S0-06.md) | docs/configuration.md = the env table, verbatim | S1-01 |
-
-### Step 1 — Config, models, store, migrations
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S1-01`](kanban/cards/S1-01.md) | Config: env table, Load(), EnsureDirs, Version/GitCommit | — |
-| [`S1-02`](kanban/cards/S1-02.md) | Pinned dependency set (go.mod + deps pin package) | — |
-| [`S1-03`](kanban/cards/S1-03.md) | Models: Camera (+Zone/ZoneError), Segment, Event (+EventObject) | S1-01 |
-| [`S1-04`](kanban/cards/S1-04.md) | Models: StorageBackend, StorageJob | S1-01 |
-| [`S1-05`](kanban/cards/S1-05.md) | Models: Webhook, WebhookDelivery | S1-01 |
-| [`S1-06`](kanban/cards/S1-06.md) | Models: User, Role, UserRole, Session, PendingIdentity | S1-01 |
-| [`S1-07`](kanban/cards/S1-07.md) | Models: SSOProvider, Audit, Setting + JSON-text helpers | S1-01 |
-| [`S1-08`](kanban/cards/S1-08.md) | Store core: New(dsn), NewWithDB(db), Postgres -> sqlite fallback | S1-01, S1-09 |
-| [`S1-09`](kanban/cards/S1-09.md) | Migrations: baseline schema over all 15 models + versioned migration table | S1-03, S1-04, S1-05, S1-06, S1-07 |
-| [`S1-10`](kanban/cards/S1-10.md) | Store: cameras, events, segments | S1-08, S1-09 |
-| [`S1-11`](kanban/cards/S1-11.md) | Store: storage backends + jobs, settings, webhooks | S1-08, S1-09 |
-| [`S1-12`](kanban/cards/S1-12.md) | Store: users, roles, sessions, sso_providers, audit | S1-08, S1-09 |
-| [`S1-13`](kanban/cards/S1-13.md) | main.go boot order + router with /health | S1-01, S1-08 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 
@@ -219,7 +184,6 @@ Total cards: **110**. In Progress limit: **2**.
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
-| [`P-03`](kanban/cards/P-03.md) | Fix the red store test: empty-subject account lookup | — |
 
 ## Done
 
@@ -229,6 +193,26 @@ Total cards: **110**. In Progress limit: **2**.
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S0-05`](kanban/cards/S0-05.md) | License, gitignore, env example, coverage baseline | — |
+| [`S0-06`](kanban/cards/S0-06.md) | docs/configuration.md = the env table, verbatim | S1-01 |
+
+### Step 1 — Config, models, store, migrations
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S1-01`](kanban/cards/S1-01.md) | Config: env table, Load(), EnsureDirs, Version/GitCommit | — |
+| [`S1-02`](kanban/cards/S1-02.md) | Pinned dependency set (go.mod + deps pin package) | — |
+| [`S1-03`](kanban/cards/S1-03.md) | Models: Camera (+Zone/ZoneError), Segment, Event (+EventObject) | S1-01 |
+| [`S1-04`](kanban/cards/S1-04.md) | Models: StorageBackend, StorageJob | S1-01 |
+| [`S1-05`](kanban/cards/S1-05.md) | Models: Webhook, WebhookDelivery | S1-01 |
+| [`S1-06`](kanban/cards/S1-06.md) | Models: User, Role, UserRole, Session, PendingIdentity | S1-01 |
+| [`S1-07`](kanban/cards/S1-07.md) | Models: SSOProvider, Audit, Setting + JSON-text helpers | S1-01 |
+| [`S1-08`](kanban/cards/S1-08.md) | Store core: New(dsn), NewWithDB(db), Postgres -> sqlite fallback | S1-01, S1-09 |
+| [`S1-09`](kanban/cards/S1-09.md) | Migrations: baseline schema over all 15 models + versioned migration table | S1-03, S1-04, S1-05, S1-06, S1-07 |
+| [`S1-10`](kanban/cards/S1-10.md) | Store: cameras, events, segments | S1-08, S1-09 |
+| [`S1-11`](kanban/cards/S1-11.md) | Store: storage backends + jobs, settings, webhooks | S1-08, S1-09 |
+| [`S1-12`](kanban/cards/S1-12.md) | Store: users, roles, sessions, sso_providers, audit | S1-08, S1-09 |
+| [`S1-13`](kanban/cards/S1-13.md) | main.go boot order + router with /health | S1-01, S1-08 |
+| [`S1-14`](kanban/cards/S1-14.md) | Step 1 suite green in golang:1.26 (go build + go test ./...) | S1-01, S1-02, S1-03, S1-04, S1-05, S1-06, S1-07, S1-08, S1-09, S1-10, S1-11, S1-12, S1-13 |
 
 ### Process — Repo mechanics
 
@@ -236,6 +220,8 @@ Total cards: **110**. In Progress limit: **2**.
 | --- | --- | --- |
 | [`P-00`](kanban/cards/P-00.md) | git init + baseline commit + this board | — |
 | [`P-01`](kanban/cards/P-01.md) | Create the GitHub remote and push main | P-00 |
+| [`P-03`](kanban/cards/P-03.md) | Fix the red store test: empty-subject account lookup | — |
+| [`P-04`](kanban/cards/P-04.md) | Keep the board honest (move cards, record evidence) | P-00 |
 
 ## Board health
 
