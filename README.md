@@ -52,7 +52,8 @@ web/          React console (live, events, cameras, settings, audit)
 docker/       Dockerfiles (server, web, detector) + compose + go2rtc template
 testdata/     pinned fixtures (bus.jpg, yolov8n) — downloaded, not committed
 scripts/      dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh
-docs/         architecture, configuration, api, installation
+docs/         architecture, configuration, api, installation, kanban (how the board works)
+kanban/       the work board: KANBAN.md (generated) + cards/ (one per deliverable) + seed.py
 ```
 
 ## Quick Start
@@ -68,6 +69,10 @@ cd web && npm run typecheck && npm run test:run
 ```
 
 Console on `http://localhost:3000`, API on `:8080`, go2rtc on `:1984`.
+
+Work is tracked one card per deliverable in [`KANBAN.md`](KANBAN.md) — cards in
+[`kanban/cards/`](kanban/cards) cite the plan step they implement and carry the
+command that proves them; [`docs/kanban.md`](docs/kanban.md) is the convention.
 
 ## Roadmap
 
