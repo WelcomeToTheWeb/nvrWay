@@ -2011,17 +2011,16 @@ card(
     "P-01",
     "process",
     "Create the GitHub remote and push main",
-    "backlog",
+    "done",
     ["origin"],
     ["P-00"],
-    "nvrWay is not on a forge: gh is authenticated as WelcomeToTheWeb (repo + workflow scopes), so gh repo create welcometotheweb/nvrWay --private --source . --push, then main is the branch CI and the board can point at.",
+    "nvrWay is not on a forge: gh is authenticated as WelcomeToTheWeb (repo + workflow scopes), so gh repo create welcometotheweb/nvrWay --private --source . --push, then main is the branch CI and the board can point at. 'CI can run against it' is S9-09's gate, not this card's.",
     [
         "remote named origin, main pushed",
         "visibility decision recorded (private: MIT + ghcr image namespace welcometotheweb/nvr)",
-        "CI (S9-09) can run against it",
     ],
     "git remote -v && gh repo view --json name,visibility",
-    "Image namespace ghcr.io/welcometotheweb/nvr/* (plan decision 11) — same account, so the push is what unlocks S9-09 and Build & Push.",
+    "Observed 2026-11-01: gh repo create -> https://github.com/WelcomeToTheWeb/nvrWay (private), HEAD -> main, main tracks origin/main. gh 2.46.0 has no --main-branch flag; local HEAD was already main. Private matches the ghcr.io/welcometotheweb/nvr/* image namespace (plan decision 11), and the token's workflow scope unblocks S9-09.",
 )
 
 card(

@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 2 | 15 | 1 | 90 | 2 |
+| 2 | 15 | 1 | 89 | 3 |
 
 Total cards: **110**. In Progress limit: **2**.
 
@@ -218,7 +218,6 @@ Total cards: **110**. In Progress limit: **2**.
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`P-01`](kanban/cards/P-01.md) | Create the GitHub remote and push main | P-00 |
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
 | [`P-03`](kanban/cards/P-03.md) | Fix the red store test: empty-subject account lookup | — |
 
@@ -236,6 +235,7 @@ Total cards: **110**. In Progress limit: **2**.
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`P-00`](kanban/cards/P-00.md) | git init + baseline commit + this board | — |
+| [`P-01`](kanban/cards/P-01.md) | Create the GitHub remote and push main | P-00 |
 
 ## Board health
 
