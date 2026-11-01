@@ -7,14 +7,19 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 84 | 26 |
+| 1 | 0 | 1 | 83 | 26 |
 
 Total cards: **111**. In Progress limit: **2**.
 
 
 ## In Progress
 
-_empty_
+
+### Step 2 — Auth: JWT, break-glass admin, OIDC, WebSocket
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
 
 ## Review — built, not yet verified
 
@@ -45,7 +50,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
 | [`S2-05`](kanban/cards/S2-05.md) | sso/testidp: in-repo test IdP | S2-04 |
 | [`S2-06`](kanban/cards/S2-06.md) | Auth routes: status, login, refresh, logout, profile, password (registration 403) | S2-01, S2-03 |
 | [`S2-07`](kanban/cards/S2-07.md) | SSO routes: authorize, callback, exchange (+ state row carrying nonce + verifier) | S2-04, S2-05 |
