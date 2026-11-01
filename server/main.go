@@ -48,6 +48,19 @@ func main() {
 	}
 	log.Println("Database connected and migrated")
 
+	// The built-in roles and the break-glass administrator. This is the boot
+	// that decides whether the installation has a way in, so the log says which
+	// account it created and, when it created none, that is the state an operator
+	// chose: the SSO-only installation, or an install with neither password nor
+	// IdP, which the auth-mode summary below calls out by name.
+	seeded, err := st.Bootstrap(cfg.BootstrapAdminUser, cfg.BootstrapAdminPassword)
+	if err != nil {
+		log.Fatalf("Failed to seed roles and the break-glass admin: %v", err)
+	}
+	if seeded {
+		log.Printf("Seeded the break-glass admin account %q from BOOTSTRAP_ADMIN_PASSWORD (local account, admin role only); delete it once you have a way in you trust", cfg.BootstrapAdminUser)
+	}
+
 	// The recording and retention defaults, stated where an operator reads them.
 	// "how long is my footage kept" and "is this camera recording" are questions
 	// the log should answer at boot, and the answer is the *effective* default,
