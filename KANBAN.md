@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 65 | 49 |
+| 0 | 0 | 1 | 64 | 50 |
 
 Total cards: **115**. In Progress limit: **2**.
 
@@ -36,7 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S4-03`](kanban/cards/S4-03.md) | Segment discovery: tail the ffmpeg CSV into segment rows on the server clock | S4-02, S1-10 |
 | [`S4-04`](kanban/cards/S4-04.md) | Crash handling: ffmpeg exit -> log + camera.status offline + restart backoff | S4-01, S4-03, S2-10 |
 | [`S4-05`](kanban/cards/S4-05.md) | GET /api/v1/segments — the timeline manifest | S1-10, S2-08, S4-03 |
 | [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03 |
@@ -210,6 +209,7 @@ _empty_
 | --- | --- | --- |
 | [`S4-01`](kanban/cards/S4-01.md) | Recorder supervisor: one goroutine per camera, record_mode dispatch | S1-10, S1-13, S2-10 |
 | [`S4-02`](kanban/cards/S4-02.md) | ffmpeg ingest command + Generation counter persisted in settings | S4-01 |
+| [`S4-03`](kanban/cards/S4-03.md) | Segment discovery: tail the ffmpeg CSV into segment rows on the server clock | S4-02, S1-10 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

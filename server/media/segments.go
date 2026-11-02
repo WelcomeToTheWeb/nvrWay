@@ -101,7 +101,12 @@ func (c *segmentCSV) readNew() ([]segmentEntry, error) {
 	lines := strings.Split(data, "\n")
 	c.partial = lines[len(lines)-1]
 	lines = lines[:len(lines)-1]
-	c.offset += int64(len(data) - len(c.partial))
+	// The offset moves past everything this read touched, **including the
+	// unfinished tail**: that tail now lives in `partial`, so reading from disk at
+	// the new offset sees only what is genuinely new. An offset that stayed behind
+	// the partial re-reads it from disk and joins it to its own copy, which is the
+	// line that "did not parse" — and, in a suite, a segment that never arrives.
+	c.offset += int64(acc.Len())
 
 	entries := make([]segmentEntry, 0, len(lines))
 	for _, line := range lines {

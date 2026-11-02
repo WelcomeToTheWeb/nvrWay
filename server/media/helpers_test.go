@@ -215,6 +215,11 @@ type spawnLog struct {
 	argvs [][]string
 	procs []*fakeProcess
 	fail  func(n int) error
+	// afterStart is the suite playing ffmpeg: it runs on a goroutine once the
+	// child has been handed out, with the argv the recorder built. The segment
+	// suites use it to write what ffmpeg writes — the files and the CSV lines —
+	// without an encoder.
+	afterStart func(n int, argv []string)
 }
 
 func (l *spawnLog) factory() processFactory {
@@ -232,7 +237,11 @@ func (l *spawnLog) factory() processFactory {
 		p := newFakeProcess()
 		l.mu.Lock()
 		l.procs = append(l.procs, p)
+		fn := l.afterStart
 		l.mu.Unlock()
+		if fn != nil {
+			go fn(n, argv)
+		}
 		return p, nil
 	}
 }
@@ -312,6 +321,51 @@ func newRecorderOn(t *testing.T, st *store.Store, cfg *config.Config) (*Recorder
 
 	t.Cleanup(rec.Close)
 	return rec, hub, spawns, clock
+}
+
+// logCapture collects what the recorder logged, so a criterion about a log line —
+// "ffmpeg exit logs", "a swallowed segment list line is reported" — is asserted by
+// reading the log, not by watching the host's stdout.
+type logCapture struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (c *logCapture) add(line string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lines = append(c.lines, line)
+}
+
+func (c *logCapture) all() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string{}, c.lines...)
+}
+
+// containing returns the captured lines naming the substring.
+func (c *logCapture) containing(sub string) []string {
+	out := []string{}
+	for _, line := range c.all() {
+		if strings.Contains(line, sub) {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
+// captureLogs wraps a recorder's Logf so the suite sees every line it writes.
+func captureLogs(t *testing.T, rec *Recorder) *logCapture {
+	t.Helper()
+	cap := &logCapture{}
+	inner := rec.Logf
+	rec.Logf = func(format string, args ...any) {
+		cap.add(fmt.Sprintf(format, args...))
+		if inner != nil {
+			inner(format, args...)
+		}
+	}
+	return cap
 }
 
 // startRecorder runs the supervisor on a goroutine and returns a stop function
