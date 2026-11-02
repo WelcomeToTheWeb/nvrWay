@@ -1,0 +1,130 @@
+# nvrWay — CI (skeleton, card S0-04)
+#
+# The four jobs the plan names, in the shape of OurWay's .github/workflows/
+# build.yml. Content is card S9-09.
+#
+# How this stays honest before S9-09: `preflight` looks at what is in the tree
+# and each job runs only when the files it needs exist. A skeleton job that
+# reports green on a suite it did not run is worse than a job that is visibly
+# skipped — so "skipped" is what you get until the harness lands.
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: welcometotheweb/nvr
+
+# One publish at a time: a tag push and its main push race the same package and
+# GHCR answers that race with "unknown blob" mid-push (OurWay's finding).
+concurrency:
+  group: ghcr-publish
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.probe.outputs.server }}
+      detector: ${{ steps.probe.outputs.detector }}
+      web: ${{ steps.probe.outputs.web }}
+      harness: ${{ steps.probe.outputs.harness }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: probe
+        run: |
+          # Each flag is a file, not a hope. The harness flag is the skeleton
+          # marker in scripts/: S9-08 removes it when the scripts get content.
+          if [ -f server/go.mod ]; then echo server=true >> "$GITHUB_OUTPUT"; else echo server=false >> "$GITHUB_OUTPUT"; fi
+          if [ -f detector/pyproject.toml ] && ls detector/tests/*.py >/dev/null 2>&1; then echo detector=true >> "$GITHUB_OUTPUT"; else echo detector=false >> "$GITHUB_OUTPUT"; fi
+          if [ -f web/package.json ]; then echo web=true >> "$GITHUB_OUTPUT"; else echo web=false >> "$GITHUB_OUTPUT"; fi
+          if grep -q "skeleton (S0-04)" scripts/*.sh; then echo harness=false >> "$GITHUB_OUTPUT"; else echo harness=true >> "$GITHUB_OUTPUT"; fi
+
+  # Job 1 of four: Go suite + detector suite + the coverage ratchet.
+  server-tests:
+    name: Server & Detector Tests
+    needs: preflight
+    if: needs.preflight.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: server/go.sum
+      - name: Install ffmpeg
+        # The media tests shell out to it (S4-07): the recorder and clip suites
+        # are not skippable on CI.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Go suite
+        run: cd server && go test ./... -count=1
+      - name: Coverage ratchet
+        # scripts/coverage.sh — skeleton today (S0-04), content S9-08.
+        run: bash scripts/coverage.sh
+      - name: Detector suite
+        # Host Python cannot host the worker, so the suite runs in the image
+        # once the detector package exists (S5-01, S5-11).
+        if: needs.preflight.outputs.detector == 'true'
+        run: docker build -f docker/Dockerfile.detector -t nvr/detector:ci . && docker run --rm nvr/detector:ci python -m pytest tests -q -m "not slow"
+
+  # Job 2 of four: typecheck + vitest.
+  web-tests:
+    name: Web Tests
+    needs: preflight
+    if: needs.preflight.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: cd web && npm ci
+      - name: Typecheck and unit tests
+        run: cd web && npm run typecheck && npm run test:run
+
+  # Job 3 of four: the Playwright suite against scripts/e2e-stack.sh.
+  e2e:
+    name: E2E
+    needs: preflight
+    if: needs.preflight.outputs.harness == 'true' && needs.preflight.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Start the throwaway stack and run the specs
+        run: scripts/e2e-stack.sh test
+
+  # Job 4 of four: publish the three images. Tags publish :latest and :<tag>;
+  # main publishes :edge (S9-09).
+  build-and-push:
+    name: Build & Push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          file: docker/Dockerfile.server
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/server:latest

@@ -63,12 +63,21 @@ cp .env.example .env               # fill in JWT_SECRET, NVR_SECRET_KEY, WORKER_
 scripts/dev.sh --demo             # compose up + a seeded demo camera, no hardware
 scripts/verify.sh                 # the acceptance gate: 9 observed passes
 scripts/detect-smoke.sh           # yolov8n.onnx + bus.jpg, CPU inference, in-image
+scripts/fetch-fixture.sh          # pinned assets into testdata/, byte counts verified
+scripts/e2e-stack.sh test         # Playwright against a throwaway sqlite stack
+scripts/coverage.sh               # coverage ratchet against coverage.baseline.json
 cd server && go test ./... -count=1
 cd detector && python3 -m pytest tests -q -m "not slow"
 cd web && npm run typecheck && npm run test:run
 ```
 
 Console on `http://localhost:3000`, API on `:8080`, go2rtc on `:1984`.
+
+`scripts/` is the harness, and every command above is a script in it. The six
+scripts exist today as skeletons with their usage lines (card S0-04) — they
+print what they will do and exit 2, so a skeleton can never be mistaken for a
+green gate; `scripts/dev.sh`, `verify.sh`, `detect-smoke.sh`, `e2e-stack.sh`,
+`coverage.sh` and `fetch-fixture.sh` get their content in Step 9 (S9-08).
 
 Work is tracked one card per deliverable in [`KANBAN.md`](KANBAN.md) — cards in
 [`kanban/cards/`](kanban/cards) cite the plan step they implement and carry the
