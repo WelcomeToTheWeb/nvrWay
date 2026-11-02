@@ -173,6 +173,38 @@ func TestStreamsReadsTheObjectsTheRunningSidecarAnswers(t *testing.T) {
 	}
 }
 
+func TestStreamsReadsTheProducerShapeGo2rtc19Answers(t *testing.T) {
+	// Verified against a live go2rtc 1.9.15 on 2026-11-02: producers come back as
+	// objects with a single `url` member, and `consumers` is null. A decoder that
+	// does not know this shape reports every real camera as a producer whose name
+	// is a JSON blob, in the probe answer and on the tile.
+	f := newFake(t, always(http.StatusOK, `{
+		"back-patio": {
+			"producers": [{"url":"exec:ffmpeg -re -f lavfi -i testsrc=size=640x360:rate=5 -f h264 -"}],
+			"consumers": null
+		}
+	}`))
+	c, _ := clientFor(f)
+
+	streams, err := c.Streams(context.Background())
+	if err != nil {
+		t.Fatalf("Streams: %v", err)
+	}
+	info := streams["back-patio"]
+	if len(info.Producers) != 1 {
+		t.Fatalf("one producer: %+v", info.Producers)
+	}
+	if info.Producers[0] != "exec:ffmpeg -re -f lavfi -i testsrc=size=640x360:rate=5 -f h264 -" {
+		t.Fatalf("the label is the source, not the struct: %q", info.Producers[0])
+	}
+	if !info.Online() {
+		t.Fatal("a stream with a producer is online")
+	}
+	if info.Consumers != nil {
+		t.Fatalf("null consumers decode as none: %+v", info.Consumers)
+	}
+}
+
 func TestStreamsAcceptsAWrappedStreamsMember(t *testing.T) {
 	f := newFake(t, always(http.StatusOK, `{"streams": {"s1": {"producers": ["a"], "consumers": []}}}`))
 	c, _ := clientFor(f)

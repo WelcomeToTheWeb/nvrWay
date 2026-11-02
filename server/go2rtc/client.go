@@ -493,11 +493,12 @@ func streamEntry(raw json.RawMessage) (StreamInfo, bool) {
 
 // endpointLabels names the producers/consumers of a stream.
 //
-// Both shapes go2rtc has ever answered are accepted: the plain strings this
-// project's contract uses, and the running server's objects, where `address` is
-// the useful label (`rtsp://cam:554/live`, `webrtc:…`) and `format` the fallback
-// (`rtsp`, `mp4`). The label is what `camera.status` broadcasts and what the
-// probe answers, so it names the peer rather than an internal struct.
+// Every shape go2rtc has answered is accepted: the plain strings this project's
+// contract uses; the objects with `format`/`address`; and what 1.9.15 answers
+// today, which is `{"url": "exec:ffmpeg …"}` — verified against a live sidecar on
+// 2026-11-02. The label is what `camera.status` broadcasts and what the probe
+// answers, so it names the peer (`address`, then `url`, then `format`) rather
+// than leaking an internal struct into the console.
 func endpointLabels(raw json.RawMessage, present bool) []string {
 	if !present || len(raw) == 0 {
 		return nil
@@ -516,11 +517,15 @@ func endpointLabels(raw json.RawMessage, present bool) []string {
 		var entry struct {
 			Format  string `json:"format"`
 			Address string `json:"address"`
+			URL     string `json:"url"`
 		}
 		if err := json.Unmarshal(item, &entry); err != nil {
 			continue
 		}
 		label := strings.TrimSpace(entry.Address)
+		if label == "" {
+			label = strings.TrimSpace(entry.URL)
+		}
 		if label == "" {
 			label = strings.TrimSpace(entry.Format)
 		}
