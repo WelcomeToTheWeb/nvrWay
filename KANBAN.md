@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 67 | 47 |
+| 0 | 0 | 1 | 66 | 48 |
 
 Total cards: **115**. In Progress limit: **2**.
 
@@ -36,7 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S4-01`](kanban/cards/S4-01.md) | Recorder supervisor: one goroutine per camera, record_mode dispatch | S1-10, S1-13, S2-10 |
 | [`S4-02`](kanban/cards/S4-02.md) | ffmpeg ingest command + Generation counter persisted in settings | S4-01 |
 | [`S4-03`](kanban/cards/S4-03.md) | Segment discovery: tail the ffmpeg CSV into segment rows on the server clock | S4-02, S1-10 |
 | [`S4-04`](kanban/cards/S4-04.md) | Crash handling: ffmpeg exit -> log + camera.status offline + restart backoff | S4-01, S4-03, S2-10 |
@@ -205,6 +204,12 @@ _empty_
 | [`S3-06`](kanban/cards/S3-06.md) | Role floor matrix (viewer read / operator CRUD / admin) + camera suite | S2-08, S3-03, S3-04 |
 | [`S3-07`](kanban/cards/S3-07.md) | Make a camera write live: restart the go2rtc sidecar after the config write | S3-05 |
 | [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
+
+### Step 4 — Recorder: continuous + event-gated segments
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S4-01`](kanban/cards/S4-01.md) | Recorder supervisor: one goroutine per camera, record_mode dispatch | S1-10, S1-13, S2-10 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

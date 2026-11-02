@@ -11,6 +11,7 @@ import (
 	_ "time/tzdata" // retention and event windows are computed in the operator's zone
 
 	"nvr/server/config"
+	"nvr/server/media"
 	"nvr/server/models"
 	"nvr/server/store"
 )
@@ -111,6 +112,21 @@ func main() {
 			report.Streams, report.Detected, report.Cameras, cfg.Go2rtcURL)
 	}
 
+	// Step 4 (S4-01): the recorder, inserted where the plan puts it in the boot
+	// order — after the media sidecar it reads from, before the API that reports
+	// what it wrote. The hub is nil for the same reason the router's is: the live
+	// feed is wired to real media by S6-04, and a recorder with no hub records and
+	// says nothing, which is a state and not a fault.
+	//
+	// Close is deferred so the ffmpeg children this process owns are terminated on
+	// the way out. A child left writing is a recording a restart cannot resume.
+	recorder := media.NewRecorder(cfg, st, nil)
+	handlers.Recorder = recorder
+	go recorder.Run(ctx)
+	defer recorder.Close()
+	log.Printf("Recorder: supervising %d camera row(s); segments are %ds; ffmpeg children are owned by this process",
+		countCameraRows(st), cfg.SegmentSeconds)
+
 	srv := &http.Server{
 		Addr:    cfg.ServerPort,
 		Handler: router,
@@ -143,4 +159,15 @@ func main() {
 		log.Printf("Server forced to shutdown: %v", err)
 	}
 	log.Println("nvrWay server exited")
+}
+
+// countCameraRows is the boot line's count of what the recorder will supervise.
+// A store that is not answering reads as 0 here, which is the same honest answer
+// the recorder's own poll gives: it says what it found, and the poll says more.
+func countCameraRows(st *store.Store) int {
+	rows, err := st.Cameras.ListAll()
+	if err != nil {
+		return 0
+	}
+	return len(rows)
 }

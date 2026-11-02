@@ -29,6 +29,7 @@ import (
 	"nvr/server/auth"
 	"nvr/server/config"
 	"nvr/server/go2rtc"
+	"nvr/server/media"
 	"nvr/server/models"
 	"nvr/server/sidecar"
 	"nvr/server/sso"
@@ -71,6 +72,12 @@ type Handlers struct {
 	RestartCalls   int
 	LastRestart    sidecar.Report
 	LastRestartErr error
+
+	// Recorder is the recording supervisor (S4-01). main.go builds it, starts it,
+	// and hands it here so the signal path can open a recording window on it
+	// (`Recorder.OpenWindow`, the card S6-03 wires) — the recorder is one object
+	// owned by the process, not one per request path.
+	Recorder *media.Recorder
 
 	// states is the server-side half of an SSO login in flight: the state value
 	// the redirect issued, with the nonce and PKCE verifier only this process
