@@ -257,11 +257,15 @@ var deniedActions = map[string]string{
 	"PUT /api/users/:id":               models.AuditUserUpdate,
 	"DELETE /api/users/:id":            models.AuditUserDelete,
 	"GET /api/users/:id/roles":         models.AuditRoleRead,
+	"GET /api/roles":                   models.AuditRoleRead,
 	"POST /api/users/:id/roles":        models.AuditUserRoleChange,
 	"GET /api/identities":              models.AuditIdentityRead,
 	"POST /api/identities/:id/link":    models.AuditIdentityLink,
 	"POST /api/identities/:id/approve": models.AuditIdentityApprove,
 	"POST /api/identities/:id/refuse":  models.AuditIdentityRefuse,
+	// The role mapping decides who logs in as what, so its refusals are recorded
+	// under the provider verb, not `route.denied`.
+	"PUT /api/settings/oidc/:provider/role-mapping": models.AuditOIDCUpdate,
 }
 
 func lookupDeniedAction(c *gin.Context) (string, AuditTarget) {

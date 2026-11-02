@@ -79,10 +79,22 @@ decided with `409` (S2-07, S2-09).
 
 ## Roles and the role floor
 
-The matrix every route section below states per route: `viewer` read,
-`operator` CRUD, `admin` everything; a `viewer` write answers
+The matrix every route section below states per route: `viewer` read, `operator`
+CRUD, `admin` everything; a `viewer` write answers
 `403 {"error":"insufficient role"}` (S2-08, S3-06). Include the audit row a
 denial writes.
+
+The authority is the **role rows**, read live: the token's role names decide which
+named gate a request runs, and the gate reads what that role is granted now
+(`RequirePermission` reads `role.permissions`, stars expanded). A token whose role
+an admin has taken away stops writing on its next request, and the role write closes
+the account's sessions so it cannot mint a new one (S2-08, S2-09).
+
+Denials are ledger rows named for the act they refused — `deniedActions` maps
+`"METHOD /api/route/:id"` to the verb (`user.read`, `role.read`, `identity.read`,
+`oidc.update`, …), with the fallback `route.denied` for a route that has not
+declared one, so a new route group whose refusals are invisible is visible as one
+row nobody expected (S2-08).
 
 The authority for a permission check is the **role rows**, read live: the token's
 role names decide which named gate the request runs, and the gate reads what that
@@ -91,9 +103,24 @@ on its next request (S2-08).
 
 ## Users, roles and identities (admin)
 
-`GET/POST /api/users`, role assignment, session revocation,
-`GET /api/identities` + `POST /api/identities/:id/link` for the
-`link_policy=pending` path (S2-09).
+Admin only: a `viewer` or `operator` bearer token on any route here answers
+`403 {"error":"insufficient role"}` and writes a ledger row under the verb of the
+act it refused (S2-09).
+
+| Route | Answer |
+|---|---|
+| `GET /api/users` | `{"users":[profile,…]}` with `?provider=`, `?role=`, `?status=`, `?q=`, `?limit=` (`limit=0` → `400`). Never a password hash. |
+| `POST /api/users` | body `{"username","password","name","email","roles"}` → `201` profile. `422` under 12 characters (the number stated), `422` naming an unknown role, `409` on a taken username. No roles named ⇒ the `viewer` floor. The account is `provider: "local"`: it authenticates by password. |
+| `GET /api/users/:id` | profile + `password_login` (bool: the break-glass door), `sessions` (live: `id`, `source_ip`, `user_agent`, `created_at`, `expires_at`), `live_sessions`. |
+| `PUT /api/users/:id` | body with any of `username`, `name`, `email`, `status` (`active`/`pending`), `password`. Response `{"user":{…},"live_sessions_dropped":N,"sign_in_required":bool}`. `403` for a provider account (its password lives at the IdP), `409` parking the last admin, `409` on a taken username, `400` when nothing was named. A password reset or a park closes the account's sessions and invalidates its access tokens. |
+| `DELETE /api/users/:id` | account, role grants and sessions go in one act (`409` on the last admin, with the reason). | 
+| `GET /api/users/:id/roles` | `{"user_id","roles":[…]}` — the rows, not the token. |
+| `POST /api/users/:id/roles` | body `{"roles":[…]}` → `{"user_id","roles","live_sessions_dropped":N,"sign_in_required":true}`. `422` naming an unknown role, `409` demoting the last admin. The change ends the account's sessions: the gate reads the role rows, and a live refresh token mints access tokens, so revoking on write is the difference between “removed” and “removed when they next ask”. |
+| `GET /api/roles` | `{"roles":[{"id","name","description","permissions":[…],"builtin"}]}` — the permission authority the gates read. |
+| `PUT /api/settings/oidc/:provider/role-mapping` | body `{"role_mapping":{"claim value":"role"}}`. `422` when the mapping names **`viewer`** — a mapping replaces roles on every login, and the floor is the only thing an identity arrives with, so a mapping that owns it locks out the people who cannot ask for it back (and the admin it locks out at the same time). `422` naming a role that does not exist. An empty mapping is allowed: no mapping is the floor standing. |
+
+The identities routes are S2-07's (`GET /api/identities`,
+`POST /api/identities/:id/approve|link|refuse`).
 
 ## Cameras
 

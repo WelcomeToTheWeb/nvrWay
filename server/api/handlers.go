@@ -124,8 +124,7 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// middleware that answers it.
 	admin := r.Group("/api", AuthMiddleware(h.JWT), RequireRole(models.RoleAdmin, h.St.Audit))
 	h.registerIdentityRoutes(admin)
-	// The account and role routes arrive with S2-09, in `users.go`, on this same
-	// admin group.
+	h.registerUserRoutes(admin)
 
 	// The detection worker's API. The gate is mounted now so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, before
