@@ -85,6 +85,20 @@ pct set "$CT" --lxc-args "lxc.mount.entry = /dev/nvidia-uvm dev/nvidia-uvm none 
 pct restart "$CT"
 ```
 
+**A node is not a driver.** If `/dev/nvidia-uvm` exists and CUDA still fails with
+999, check what is behind it — `mknod` creates the file, `modprobe` loads the
+module, and the failure looks healthy from every other angle:
+
+```sh
+python3 -c "import os; os.open('/dev/nvidia-uvm', os.O_RDWR)"   # OSError 6 ENXIO = module not loaded
+ls /sys/module/nvidia_uvm || echo "not loaded"
+modprobe nvidia-uvm                                              # on the host
+```
+
+`scripts/gpu-probe.sh` opens each node and prints the errno for exactly this
+reason. A box where `nvidia-smi`, CDI and `--gpus all` all pass and CUDA fails is
+usually here.
+
 Then regenerate the CDI spec **in the container** — the spec inherits whatever
 nodes exist where it is generated, and a spec generated without `/dev/nvidia-uvm`
 hands every container a GPU that CUDA cannot initialise:

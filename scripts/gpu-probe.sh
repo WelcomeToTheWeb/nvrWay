@@ -30,6 +30,25 @@ CUDA=0
 [[ "${1:-}" == "--cuda" ]] && CUDA=1
 FAILS=0
 
+# node_probe opens a character node and prints "ok" or the errno. The point is
+# ENXIO (6): a node created by mknod with no module loaded behind it. Every other
+# GPU check passes in that state, and CUDA is the only thing that notices.
+node_probe() {
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$1" <<'PY' 2>/dev/null
+import os, sys
+try:
+    fd = os.open(sys.argv[1], os.O_RDWR)
+    os.close(fd)
+    print("ok")
+except OSError as e:
+    print(e.errno)
+PY
+  else
+    echo "no-python3"
+  fi
+}
+
 head_ "1. kernel side: is the module loaded and the card bound?"
 if [[ -r /proc/driver/nvidia/version ]]; then
   pass "module: $(head -1 /proc/driver/nvidia/version | sed 's/NVRM version: //')"
@@ -63,8 +82,22 @@ fi
 
 head_ "3. device nodes: the ones NVML needs, and the one CUDA needs"
 for dev in /dev/nvidia0 /dev/nvidiactl /dev/nvidia-uvm; do
-  if [[ -c $dev ]]; then pass "$dev ($(stat -c '%Hr:%Lr %U:%G %a' "$dev" 2>/dev/null))"
-  else fail "$dev missing"; ((FAILS++)); fi
+  if [[ -c $dev ]]; then
+    # A character node can exist with no driver behind it — `mknod` creates the
+    # file, and `modprobe` is what puts the module behind it. The node then opens
+    # with ENXIO, and CUDA answers 999 with a perfectly present-looking /dev.
+    OPENED=$(node_probe "$dev")
+    if [[ "$OPENED" == "ok" ]]; then
+      pass "$dev ($(stat -c '%Hr:%Lr %U:%G %a' "$dev" 2>/dev/null)) — opens"
+    elif [[ "$OPENED" == "6" ]]; then
+      fail "$dev exists and opens with ENXIO — no module behind it (host: modprobe nvidia-uvm)"
+      ((FAILS++))
+    else
+      info "$dev opens with errno $OPENED"
+    fi
+  else
+    fail "$dev missing"; ((FAILS++))
+  fi
 done
 if [[ ! -c /dev/nvidia-uvm ]]; then
   info "NVML works without /dev/nvidia-uvm; CUDA does not. A box that passes nvidia-smi"
