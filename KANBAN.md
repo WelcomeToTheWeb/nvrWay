@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 71 | 41 |
+| 0 | 0 | 1 | 69 | 43 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -36,8 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S3-03`](kanban/cards/S3-03.md) | Camera API: CRUD, probe, snapshot, slug rules | S1-10, S3-01, S3-02 |
-| [`S3-04`](kanban/cards/S3-04.md) | Zone writes: PUT /api/v1/cameras/:id/zones + audit | S1-03, S3-03 |
 | [`S3-05`](kanban/cards/S3-05.md) | Apply go2rtc config on every camera write + at boot | S3-01, S3-02, S3-03 |
 | [`S3-06`](kanban/cards/S3-06.md) | Role floor matrix (viewer read / operator CRUD / admin) + camera suite | S2-08, S3-03, S3-04 |
 
@@ -208,6 +206,8 @@ _empty_
 | --- | --- | --- |
 | [`S3-01`](kanban/cards/S3-01.md) | go2rtc/client.go: streams, put/delete, ApplyConfig, Frame, WebRTCOffer | S1-01 |
 | [`S3-02`](kanban/cards/S3-02.md) | go2rtc/config.go: render go2rtc.yaml from camera rows (golden file) | S1-03, S3-01 |
+| [`S3-03`](kanban/cards/S3-03.md) | Camera API: CRUD, probe, snapshot, slug rules | S1-10, S3-01, S3-02 |
+| [`S3-04`](kanban/cards/S3-04.md) | Zone writes: PUT /api/v1/cameras/:id/zones + audit | S1-03, S3-03 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

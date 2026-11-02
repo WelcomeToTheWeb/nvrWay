@@ -28,6 +28,7 @@ import (
 
 	"nvr/server/auth"
 	"nvr/server/config"
+	"nvr/server/go2rtc"
 	"nvr/server/models"
 	"nvr/server/sso"
 	"nvr/server/store"
@@ -50,6 +51,12 @@ type Handlers struct {
 	OAuth *sso.OAuthHandler
 	// Limiter is the per-user REST budget.
 	Limiter *RateLimiter
+
+	// Go2rtc is the media sidecar client: the probe, the snapshot, and the
+	// config write every camera write makes (S3-01, S3-05). nil means no sidecar
+	// is configured, and the camera routes say so rather than reporting a camera
+	// as probeable.
+	Go2rtc *go2rtc.Client
 
 	// states is the server-side half of an SSO login in flight: the state value
 	// the redirect issued, with the nonce and PKCE verifier only this process
@@ -118,6 +125,10 @@ func (h *Handlers) Register(r *gin.Engine) {
 	session.PUT("/password", h.ChangePassword)
 
 	h.registerSSORoutes(public, session)
+
+	// The camera surface (Step 3): the rows, the probe, the snapshot, the zone
+	// rules, and the one path that writes go2rtc's config.
+	h.registerCameraRoutes(r)
 
 	// The admin surface: accounts, roles, the pending-identity queue and the
 	// ledger. The gate is the role check, and the denial is audited by the same
