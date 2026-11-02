@@ -119,6 +119,14 @@ func (f *mediaFake) deletedStreams() []string {
 	return append([]string(nil), f.deleted...)
 }
 
+// answeredCalls is the sidecar's call log: the order the endpoints were hit,
+// which is how the boot sequence's "probe, then apply" is asserted.
+func (f *mediaFake) answeredCalls() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.answered...)
+}
+
 func (f *mediaFake) snapshotQuery() url.Values {
 	f.mu.Lock()
 	defer f.mu.Unlock()

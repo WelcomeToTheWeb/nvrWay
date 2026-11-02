@@ -92,7 +92,24 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	router := newRouter(ctx, cfg, st)
+	router, handlers := newRouter(ctx, cfg, st)
+
+	// Step 3 (S3-05): the sidecar is probed, then the config rendered from the
+	// camera rows is applied — through the same handler set the camera writes use,
+	// so there is exactly one thing in this process that writes go2rtc's config.
+	//
+	// A failure is logged, not fatal. The sidecar being down is the most common
+	// real-world state a deployment boots into (cameras on a PoE switch that is
+	// still negotiating, a compose stack where go2rtc starts after the server), and
+	// a server that refuses to start when that happens takes the API, the console
+	// and the camera rows down with it — leaving the operator no way to see which
+	// of the two is down. The line says what it found and what is running.
+	if report, err := handlers.BootstrapGo2rtc(ctx); err != nil {
+		log.Printf("WARNING: go2rtc at boot: %v (cameras keep their rows; the config is re-applied on the next camera save)", err)
+	} else {
+		log.Printf("go2rtc: %d streams, %d detection taps, config applied from %d active camera rows (%s)",
+			report.Streams, report.Detected, report.Cameras, cfg.Go2rtcURL)
+	}
 
 	srv := &http.Server{
 		Addr:    cfg.ServerPort,

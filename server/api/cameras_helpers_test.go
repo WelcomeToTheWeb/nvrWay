@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -15,7 +16,15 @@ import (
 	"nvr/server/models"
 )
 
-// Shared fixtures for the camera and zone suites.
+// Shared fixtures for the camera, zone and config-apply suites.
+
+// readFile is for the suite's architectural assertions against the source itself:
+// "who writes go2rtc's config" is a question the file tree answers, and a test
+// that only checks behavior cannot see a second writer appear.
+func readFile(path string) (string, error) {
+	source, err := os.ReadFile(path)
+	return string(source), err
+}
 
 // doRaw is `do` for the assertions that need the response headers and the body
 // bytes: the snapshot's cache promise and the config-failure body are both

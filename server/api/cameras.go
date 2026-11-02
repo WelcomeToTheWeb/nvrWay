@@ -59,6 +59,67 @@ func (h *Handlers) registerCameraRoutes(r *gin.Engine) {
 	admin.DELETE("/:id", h.DeleteCamera)
 }
 
+// Go2rtcBootReport is what the boot step has to say: the sidecar's state, how
+// many streams it reported, and whether the rendered config landed.
+type Go2rtcBootReport struct {
+	Probed   bool   `json:"probed"`
+	Applied  bool   `json:"applied"`
+	Streams  int    `json:"streams"`
+	Cameras  int    `json:"cameras"`
+	Detected int    `json:"streams_detection_taps"`
+	Reason   string `json:"reason"`
+}
+
+// BootstrapGo2rtc is the boot step (S3-05): probe the sidecar, then apply the
+// config rendered from the camera rows.
+//
+// A failure is returned, never fatal. A server that refuses to boot because its
+// media sidecar is down is a server you cannot use to find out which of the two
+// is down — and the camera rows, the accounts and the API are all usable without
+// go2rtc. The log line says what happened and what the installation is running
+// as, and the camera write path re-applies on the next save.
+//
+// The probe comes first because it is the cheap question: it says whether the
+// sidecar answers at all, before a whole-file config write spends its retries
+// against a host that is not there.
+func (h *Handlers) BootstrapGo2rtc(ctx context.Context) (*Go2rtcBootReport, error) {
+	report := &Go2rtcBootReport{}
+	if h.Go2rtc == nil {
+		report.Reason = "no go2rtc sidecar is configured (GO2RTC_URL)"
+		return report, errors.New(report.Reason)
+	}
+
+	if streams, err := h.Go2rtc.Streams(ctx); err != nil {
+		report.Reason = fmt.Sprintf("go2rtc did not answer the probe: %v", err)
+	} else {
+		report.Probed = true
+		report.Streams = len(streams)
+		for name := range streams {
+			if strings.HasSuffix(name, go2rtc.DetectionSuffix) {
+				report.Detected++
+			}
+		}
+	}
+
+	cameras, err := h.St.Cameras.ListActive()
+	if err != nil {
+		report.Reason = fmt.Sprintf("the camera rows are unreadable: %v", err)
+		return report, errors.New(report.Reason)
+	}
+	report.Cameras = len(cameras)
+
+	if err := h.ApplyCameraConfig(ctx); err != nil {
+		if report.Reason != "" {
+			report.Reason = fmt.Sprintf("%s; config not applied: %v", report.Reason, err)
+		} else {
+			report.Reason = fmt.Sprintf("config not applied: %v", err)
+		}
+		return report, errors.New(report.Reason)
+	}
+	report.Applied = true
+	return report, nil
+}
+
 // cameraView is a camera row as the console reads it. `zones` is the parsed rule
 // set, not the JSON text: the console draws polygons, and a client that has to
 // parse a string column to draw one is a contract with two shapes for one thing.

@@ -8,6 +8,7 @@ import (
 
 	"nvr/server/api"
 	"nvr/server/config"
+	"nvr/server/go2rtc"
 	"nvr/server/models"
 	"nvr/server/store"
 )
@@ -23,7 +24,7 @@ import (
 // `ctx` is the server lifecycle context: Steps 2–7 start their background
 // workers (recorder, uploader, sweeper, clip builder) from it, and it is
 // cancelled at shutdown, so no worker outlives the process that owns it.
-func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.Engine {
+func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) (*gin.Engine, *api.Handlers) {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -88,7 +89,16 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.En
 	//
 	// The hub is nil until the live feed is wired to the recorder (S6-04): the
 	// `/ws` route is mounted by the handler set when a hub is handed to it.
-	api.NewHandlers(ctx, st, nil, nil, cfg).Register(router)
+	handlers := api.NewHandlers(ctx, st, nil, nil, cfg)
 
-	return router
+	// Step 3: the media sidecar client. The camera routes need it for the probe
+	// and the snapshot, and every camera write pushes the rendered config through
+	// it — so it is built here, once, and the boot step (main.go) applies the
+	// config through the same handler set, which is what keeps it a single write
+	// path (S3-05).
+	handlers.Go2rtc = go2rtc.NewClient(cfg)
+
+	handlers.Register(router)
+
+	return router, handlers
 }
