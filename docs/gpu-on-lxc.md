@@ -101,9 +101,10 @@ and no `nvidia_uvm`), run these on the host, in order — each one names a
 different reason:
 
 ```sh
-# 1. Is the module built for THIS kernel? The driver here is a 615.78.08 runfile
-#    install on a Proxmox kernel (7.0.14-26-pve): a runfile only builds modules
-#    for the kernel whose headers it found.
+# 1. Is the module built for THIS kernel? On this box it was, and the answer is
+#    the useful shape of the answer: /lib/modules/7.0.14-26-pve/updates/dkms/
+#    nvidia-uvm.ko — present, installed, and simply not loaded. Check it before
+#    suspecting the build.
 uname -r
 find /lib/modules/$(uname -r) -name 'nvidia*uv*'
 ls /lib/modules/$(uname -r)/updates/dkms /lib/modules/$(uname -r)/extra 2>/dev/null
@@ -180,10 +181,15 @@ docker run --rm --gpus all nvidia/cuda:13.1.0-runtime-ubuntu24.04 bash -lc \
    python3 -c "import onnxruntime as o; print(o.get_available_providers())"'
 ```
 
-**Current state on this box (2026-11-02, after §2 ran):** lines 1–4 pass,
-`/dev/nvidia-uvm` is missing (§2b), and the CUDA layer fails at `cudaSetDevice`
-with 999. Nothing in Steps 3–4 depends on the GPU; the CPU detector path is
-unaffected, and S5-07's CUDA overlay is what §2b closes.
+**Current state on this box: green.** `scripts/gpu-probe.sh --cuda` answers
+`providers=CUDAExecutionProvider,CPUExecutionProvider` on the plan's pinned
+`onnxruntime-gpu==1.31.1`, and the header line is `GPU is reachable from this
+box.` It took three host actions, in sequence, each revealing the next layer:
+expose the nodes (§2), add `/dev/nvidia-uvm` (§2b), and — the one that actually
+closed it — `modprobe nvidia-uvm`, because **a node with no module behind it
+opens with ENXIO and every NVML check passes anyway.** Nothing in Steps 3–4
+depended on any of it; this unblocks S5-06's GPU target and S5-07's CUDA
+overlay.
 
 When those four are green, Step 5's CUDA overlay (S5-07) has a test target and
 `S5-06`'s GPU test target exists. Until then the detector's CPU path (S5-06) is

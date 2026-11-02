@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 67 | 46 |
+| 0 | 0 | 1 | 67 | 47 |
 
 Total cards: **115**. In Progress limit: **2**.
 
@@ -22,12 +22,6 @@ _empty_
 
 ## Blocked
 
-
-### Step 3 — Cameras + go2rtc sync + live plumbing
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
 
 ### Step 9 — Containers, compose, scripts, CI
 
@@ -210,6 +204,7 @@ _empty_
 | [`S3-05`](kanban/cards/S3-05.md) | Apply go2rtc config on every camera write + at boot | S3-01, S3-02, S3-03 |
 | [`S3-06`](kanban/cards/S3-06.md) | Role floor matrix (viewer read / operator CRUD / admin) + camera suite | S2-08, S3-03, S3-04 |
 | [`S3-07`](kanban/cards/S3-07.md) | Make a camera write live: restart the go2rtc sidecar after the config write | S3-05 |
+| [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 
