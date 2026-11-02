@@ -244,5 +244,31 @@ class SharedList(unittest.TestCase):
         self.assertEqual(set(data), {"old", "new"})
 
 
+class ProjectSessions(unittest.TestCase):
+    def cache(self, root: pathlib.Path, entries) -> None:
+        kanban = root / "kanban"
+        kanban.mkdir(parents=True, exist_ok=True)
+        (kanban / "session-cache.json").write_text(json.dumps({"version": 7, "info": entries}))
+
+    def test_only_this_projects_sessions(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = pathlib.Path(tmp.name)
+        self.cache(root, [
+            ["/x/2026-11-02T00-00-00-000Z_01a19986-10e0-72de-93ff-ac6cd9214cd2.jsonl",
+             {"projectPath": "/root/projects/nvrWay"}],
+            ["/x/2026-11-01T00-00-00-000Z_01a165eb-5a3d-7373-b913-f9ab8823a39e.jsonl",
+             {"projectPath": "/root"}],
+            ["/x/not-a-session.txt", {"projectPath": "/root/projects/nvrWay"}],
+        ])
+        got = pi_board.project_sessions(root, "/root/projects/nvrWay")
+        self.assertEqual(got, {"01a19986-10e0-72de-93ff-ac6cd9214cd2": "/root/projects/nvrWay"})
+
+    def test_missing_cache_is_not_an_error(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.assertEqual(pi_board.project_sessions(pathlib.Path(tmp.name), "/x"), {})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

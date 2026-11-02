@@ -196,6 +196,37 @@ def store_paths(list_name: str) -> tuple[pathlib.Path, pathlib.Path]:
     return base / "tasks" / list_name, base / "agent-activity" / "_task-maps"
 
 
+def project_sessions(list_root: pathlib.Path, root: str) -> dict[str, str]:
+    """Every session of this project, from the board's own session cache.
+
+    `<agent dir>/kanban/session-cache.json` records `[transcript path, {projectPath,…}]`,
+    and the transcript name ends with the session id. Pointing all of them at the shared
+    list is what makes one board for the project: a session dispatched later reads the
+    same tasks as this one.
+    """
+    path = list_root / "kanban" / "session-cache.json"
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return out
+    for entry in data.get("info") or []:
+        if not isinstance(entry, list) or len(entry) < 2:
+            continue
+        name, info = entry
+        if not isinstance(info, dict) or info.get("projectPath") != root:
+            continue
+        stem = pathlib.Path(name).name
+        if not stem.endswith(".jsonl"):
+            continue
+        sid = stem[:-6].split("_")[-1]
+        if sid:
+            out[sid] = root
+    return out
+
+
 def register_sessions(tasks_dir: pathlib.Path, maps_dir: pathlib.Path, list_name: str, sessions: dict[str, str]) -> None:
     """Tell the board which sessions read this shared task list.
 
@@ -250,6 +281,8 @@ def main(argv: list[str] | None = None) -> int:
     live = os.environ.get("PI_KANBAN_SESSION_ID")
     if live:
         sessions[live] = str(ROOT)
+    if not args.tasks_dir:
+        sessions.update(project_sessions(agent_dir(), str(ROOT)))
 
     changed = sync(cards, tasks_dir, dry=args.dry_run)
     if not args.dry_run:
