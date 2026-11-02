@@ -136,6 +136,7 @@ func (h *Handlers) Register(r *gin.Engine) {
 	admin := r.Group("/api", AuthMiddleware(h.JWT), RequireRole(models.RoleAdmin, h.St.Audit))
 	h.registerIdentityRoutes(admin)
 	h.registerUserRoutes(admin)
+	h.registerOIDCRoutes(admin)
 
 	// The detection worker's API. The gate is mounted now so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, before

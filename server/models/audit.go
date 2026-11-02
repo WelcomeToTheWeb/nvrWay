@@ -136,6 +136,7 @@ const (
 	AuditWebhookDelete = "webhook.delete"
 	AuditWebhookTest   = "webhook.test"
 
+	AuditOIDCRead   = "oidc.read"
 	AuditOIDCCreate = "oidc.create"
 	AuditOIDCUpdate = "oidc.update"
 	AuditOIDCDelete = "oidc.delete"

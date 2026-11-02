@@ -276,6 +276,12 @@ var deniedActions = map[string]string{
 	"POST /api/identities/:id/refuse":  models.AuditIdentityRefuse,
 	// The role mapping decides who logs in as what, so its refusals are recorded
 	// under the provider verb, not `route.denied`.
+	// The OIDC provider surface (S3-06): who people log in as is decided here, so
+	// its refusals are recorded under the provider verbs.
+	"GET /api/settings/oidc":                        models.AuditOIDCRead,
+	"POST /api/settings/oidc":                       models.AuditOIDCCreate,
+	"PUT /api/settings/oidc/:provider":              models.AuditOIDCUpdate,
+	"DELETE /api/settings/oidc/:provider":           models.AuditOIDCDelete,
 	"PUT /api/settings/oidc/:provider/role-mapping": models.AuditOIDCUpdate,
 }
 

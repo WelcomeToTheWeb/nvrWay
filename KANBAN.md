@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 68 | 44 |
+| 0 | 0 | 1 | 67 | 45 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -31,12 +31,6 @@ _empty_
 
 ## Backlog
 
-
-### Step 3 — Cameras + go2rtc sync + live plumbing
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S3-06`](kanban/cards/S3-06.md) | Role floor matrix (viewer read / operator CRUD / admin) + camera suite | S2-08, S3-03, S3-04 |
 
 ### Step 4 — Recorder: continuous + event-gated segments
 
@@ -208,6 +202,7 @@ _empty_
 | [`S3-03`](kanban/cards/S3-03.md) | Camera API: CRUD, probe, snapshot, slug rules | S1-10, S3-01, S3-02 |
 | [`S3-04`](kanban/cards/S3-04.md) | Zone writes: PUT /api/v1/cameras/:id/zones + audit | S1-03, S3-03 |
 | [`S3-05`](kanban/cards/S3-05.md) | Apply go2rtc config on every camera write + at boot | S3-01, S3-02, S3-03 |
+| [`S3-06`](kanban/cards/S3-06.md) | Role floor matrix (viewer read / operator CRUD / admin) + camera suite | S2-08, S3-03, S3-04 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

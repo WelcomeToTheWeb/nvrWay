@@ -48,6 +48,22 @@ var (
 	ErrNoCodeFlow = errors.New("provider does not support the authorization code flow")
 )
 
+// DiscoveryKindOf names the discovery state an error carries, so the API answers
+// the console's named state (`discovery_unreachable`, `issuer_mismatch`, …)
+// instead of a 500 whose cause is a log line. An error that is not a
+// DiscoveryError is the unreachable case: it is a fetch that produced no
+// document, which is what the operator has to fix.
+func DiscoveryKindOf(err error) string {
+	var discoveryErr *DiscoveryError
+	if errors.As(err, &discoveryErr) {
+		return discoveryErr.Kind
+	}
+	if err == nil {
+		return DiscoveryOK
+	}
+	return DiscoveryUnreachable
+}
+
 // DiscoveryDocument is the subset of `.well-known/openid-configuration` the
 // product acts on. Unknown members are ignored (the document is the IdP's, and
 // it will publish more than we use); `Raw` keeps the document verbatim so the
