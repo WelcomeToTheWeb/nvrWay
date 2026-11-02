@@ -86,6 +86,38 @@ yet. It never overwrites a card: hand-edited cards are the source of truth.
 `--check` reports what is missing. Adding a deliverable to the plan means adding
 one `card(...)` block to `seed.py` — the plan is the upstream, the board is derived.
 
+## The pi-kanban mirror (P-06)
+
+The dev tool `pi-kanban` keeps its **own** task list — `<agent dir>/kanban/tasks/<list>/<id>.json`,
+one JSON file per task — and shows "no active tasks" while nothing writes it. That store is a
+different board from `KANBAN.md`: the cards stay the source of truth, the mirror is derived and
+disposable.
+
+```bash
+python3 kanban/pi_board.py            # mirror the cards into the board's task store
+python3 kanban/pi_board.py --check    # report drift (missing / stale / ghost tasks), exit 1
+python3 kanban/pi_board.py --dry-run  # count what would change, write nothing
+python3 kanban/test_pi_board.py       # the suite, stdlib only
+```
+
+Mapping, forced by two facts about the tool — its task list has only `pending | in_progress |
+completed`, and it sorts by `parseInt(id, 10)`, so a card id like `S2-04` is not a task id:
+
+| Card column | Task status |
+| --- | --- |
+| Backlog, Blocked | `pending` — the Blocked reason is quoted in the task description |
+| In Progress, Review | `in_progress` |
+| Done | `completed` |
+
+Task ids are `step * 100 + card number` (`S1-14` → `114`, `S11-04` → `1104`, process cards at
+`9000+`), so the tool's numeric sort lists cards the way `KANBAN.md` does. Card `depends:`
+becomes `blockedBy`, and its inverse in `blocks`.
+
+The mirror writes a shared list (`nvrway`) that every session of this project reads, and
+`kanban/pre-commit.sh` runs it after regenerating `KANBAN.md`: a tool board that lags the cards
+is as useless as the repo board lagging them. It never writes into `kanban/cards/` — delete the
+store and the cards are untouched.
+
 ## Why it lives in the repo
 
 No forge is required, no service runs, and the board is diffable: a commit that

@@ -18,7 +18,7 @@ from __future__ import annotations
 import pathlib
 import sys
 
-TODAY = "2026-11-01"
+TODAY = "2026-11-02"
 CARDS = pathlib.Path(__file__).resolve().parent / "cards"
 CARDS.mkdir(parents=True, exist_ok=True)
 
@@ -2089,6 +2089,28 @@ card(
     ],
     "git ls-files server/models | wc -l && git clone --quiet $PWD /tmp/nvrclone && cd /tmp/nvrclone/server && go build ./...",
     "Found while staging Step 2 (2026-11-01): `git add server/models` answered \"paths are ignored by one of your .gitignore files\". S1-03..S1-07 are Done with green suite output quoted — the code existed and passed; it was simply never in git. P-04 (board honesty) covers exactly this failure mode.",
+)
+
+card(
+    "P-06",
+    "process",
+    "Mirror the cards into the pi-kanban board's task store (kanban/pi_board.py)",
+    "in-progress",
+    ["kanban/pi_board.py", "kanban/test_pi_board.py", "kanban/pre-commit.sh", "kanban/seed.py", "docs/kanban.md"],
+    ["P-00", "P-04"],
+    "The pi-kanban board (the dev tool, not this repo's board) shows its own task list, which was empty while this board carried 111 cards: pi-kanban reads task JSON from ~/.pi/agent/kanban/tasks/<list>/<id>.json and nothing wrote it. kanban/pi_board.py mirrors these cards into that store so the tool's board shows this project's real state — cards stay the source of truth, the mirror is derived and disposable, and --check proves the mirror matches the cards.",
+    [
+        "one task file per card, carrying the fields pi-kanban parses (id, subject, description, activeForm, status, blocks, blockedBy)",
+        "task ids are numeric and stable (step + card number), so the board's numeric sort lists cards the way KANBAN.md does",
+        "the five columns collapse onto the board's three states without losing the Blocked reason — it is quoted in the task description",
+        "--check reports drift (wrong status, missing task, ghost task) and exits non-zero",
+        "re-running the mirror rewrites nothing when nothing changed and deletes tasks whose card is gone",
+        "the suite runs on stdlib alone (host Python 3.14 has no pip)",
+        "pre-commit regenerates the mirror, so the tool's board cannot lag the cards",
+        "the mirror writes only into the board's task store — never into kanban/cards/",
+    ],
+    "python3 kanban/test_pi_board.py && python3 kanban/pi_board.py && python3 kanban/pi_board.py --check && pi-kanban task list --all",
+    "Found 2026-11-02: the board said 'no active tasks' with 111 cards in kanban/cards/. pi-kanban's task store (server.js: TASKS_DIR = <agent dir>/kanban/tasks, one JSON per task; lib/task-store.js normalizeTask defines the fields) is a separate board from KANBAN.md and nothing in this repo wrote it. Its statuses are only pending | in_progress | completed, and its task list sorts by parseInt(id, 10) — so card ids like S2-04 need a numeric id.",
 )
 
 # ----------------------------------------------------------------------------------

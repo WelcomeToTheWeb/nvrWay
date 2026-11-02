@@ -17,3 +17,12 @@ if ! git diff --quiet -- KANBAN.md; then
 	git add KANBAN.md
 	echo "pre-commit: KANBAN.md regenerated and staged"
 fi
+
+# The pi-kanban mirror (P-06): the dev tool's task store is derived from these
+# cards, so a commit that moves a cards moves the tool's board in the same breath.
+# Quietly skipped when this machine has no pi-kanban board installed.
+PK_AGENT="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+if [ -d "$PK_AGENT/kanban" ]; then
+	python3 kanban/pi_board.py --list nvrway --quiet \
+		|| echo "pre-commit: pi-kanban mirror did not run — python3 kanban/pi_board.py"
+fi
