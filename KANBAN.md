@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 83 | 28 |
+| 0 | 0 | 1 | 83 | 29 |
 
-Total cards: **112**. In Progress limit: **2**.
+Total cards: **113**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -230,6 +230,7 @@ _empty_
 | [`P-04`](kanban/cards/P-04.md) | Keep the board honest (move cards, record evidence) | P-00 |
 | [`P-05`](kanban/cards/P-05.md) | 'Track server/models: .gitignore''s models/ pattern ignored a Go package' | S0-05, S1-03, S1-04, S1-05, S1-06, S1-07 |
 | [`P-06`](kanban/cards/P-06.md) | Mirror the cards into the pi-kanban board's task store (kanban/pi_board.py) | P-00, P-04 |
+| [`P-07`](kanban/cards/P-07.md) | Ignore the Hindsight artifacts the memory tool drops in the repo root | P-00, P-05 |
 
 ## Board health
 

@@ -30,6 +30,15 @@ data/
 # scripts/coverage.sh working files
 .coverage-*.out
 
+# Files the coding-agent memory tooling writes into the repo root: the memory
+# bank's config dump, and the HTTP API spec it fetched into the working tree.
+# They belong to this machine's tooling, not to the product, and committing them
+# would put a bank config inside an install. Both patterns are root-anchored on
+# purpose, for the P-05 reason: unanchored, `spec.json` would also ignore a real
+# spec file inside any package (card P-07).
+/nvr_cfg2.json
+/spec.json
+
 # Python packaging / test scratch
 __pycache__/
 .pytest_cache/

@@ -2113,6 +2113,24 @@ card(
     "Found 2026-11-02: the board said 'no active tasks' with 111 cards in kanban/cards/. pi-kanban's task store (server.js: TASKS_DIR = <agent dir>/kanban/tasks, one JSON per task; lib/task-store.js normalizeTask defines the fields) is a separate board from KANBAN.md and nothing in this repo wrote it. Its statuses are only pending | in_progress | completed, and its task list sorts by parseInt(id, 10) — so card ids like S2-04 need a numeric id.",
 )
 
+card(
+    "P-07",
+    "process",
+    "Ignore the Hindsight artifacts the memory tool drops in the repo root",
+    "in-progress",
+    [".gitignore"],
+    ["P-00", "P-05"],
+    "Two files the coding-agent memory tooling writes into the repo root — nvr_cfg2.json (the bank's config dump) and spec.json (the Hindsight HTTP API OpenAPI spec) — sit untracked and unignored, so every git status shows them and a `git add -A` would commit a tool's config into the product. Ignore them with patterns anchored to the repo root, and prove no source path is caught by them.",
+    [
+        "`/nvr_cfg2.json` and `/spec.json` are ignored (git check-ignore names the pattern)",
+        "the patterns are root-anchored with a leading slash, per P-05: an unanchored `spec.json` would also ignore a real spec file in any package",
+        "nothing under server/, kanban/, docs/, web/, scripts/ became ignored: git status --ignored -s shows only the two artifacts and the known artifact directories",
+        "git status --porcelain is empty on a clean tree",
+    ],
+    "git check-ignore -v nvr_cfg2.json spec.json && git status --porcelain",
+    "Observed 2026-11-02 while committing S2-04: `git status --short` listed `?? nvr_cfg2.json` and `?? spec.json`. They are this machine's memory tooling's own files (the bank config, and the API spec it fetched), not project files — the repo has no OpenAPI document at its root, and its deployment config is .env / docker/, not a bank config.",
+)
+
 # ----------------------------------------------------------------------------------
 # Emit
 # ----------------------------------------------------------------------------------
