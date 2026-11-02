@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 82 | 30 |
+| 0 | 0 | 1 | 81 | 31 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -36,7 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S0-01`](kanban/cards/S0-01.md) | Repo tree skeleton (server packages + detector/web/docker/scripts/testdata/.github) | — |
 | [`S0-02`](kanban/cards/S0-02.md) | Docs skeleton: DESIGN, PRODUCT, SECURITY, CONTRIBUTING + docs/ headings | — |
 | [`S0-03`](kanban/cards/S0-03.md) | Compose + Dockerfile skeletons | S0-01 |
 | [`S0-04`](kanban/cards/S0-04.md) | scripts/ + CI workflow skeletons | S0-01 |
@@ -181,6 +180,7 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
+| [`S0-01`](kanban/cards/S0-01.md) | Repo tree skeleton (server packages + detector/web/docker/scripts/testdata/.github) | — |
 | [`S0-05`](kanban/cards/S0-05.md) | License, gitignore, env example, coverage baseline | — |
 | [`S0-06`](kanban/cards/S0-06.md) | docs/configuration.md = the env table, verbatim | S1-01 |
 
