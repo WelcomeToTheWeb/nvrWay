@@ -30,6 +30,7 @@ import (
 	"nvr/server/config"
 	"nvr/server/go2rtc"
 	"nvr/server/models"
+	"nvr/server/sidecar"
 	"nvr/server/sso"
 	"nvr/server/store"
 	"nvr/server/ws"
@@ -57,6 +58,19 @@ type Handlers struct {
 	// is configured, and the camera routes say so rather than reporting a camera
 	// as probeable.
 	Go2rtc *go2rtc.Client
+
+	// Restarter makes a config write live (S3-07). go2rtc instantiates its
+	// streams at startup, so a camera write that only writes the file leaves the
+	// new stream out of the live map until the sidecar restarts. nil is not
+	// allowed: the constructor gives the caller a Noop that says why, and the
+	// console is told the stream goes live at the next boot.
+	Restarter sidecar.Restarter
+	// RestartCalls and LastRestart are the suite's window into the restart path:
+	// "create restarts once, zone writes restart none" is a count, and a count
+	// asserted from a fake is a fact, not a log line.
+	RestartCalls   int
+	LastRestart    sidecar.Report
+	LastRestartErr error
 
 	// states is the server-side half of an SSO login in flight: the state value
 	// the redirect issued, with the nonce and PKCE verifier only this process

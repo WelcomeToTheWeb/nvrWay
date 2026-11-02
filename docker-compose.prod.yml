@@ -86,10 +86,32 @@ services:
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       WEB_URL: ${WEB_URL:-http://localhost:3000}
       TZ: UTC
+      # S3-07 — the go2rtc restart. go2rtc instantiates its streams at startup,
+      # so a camera write that only pushes the config leaves a new camera out of
+      # the live map until the sidecar boots from that file (measured on go2rtc
+      # 1.9.15). The server recreates the service after each camera write, one
+      # service, `--no-deps`, and reports which streams came up.
+      #
+      # Set `GO2RTC_COMPOSE_FILE` to the compose file's path *as the server
+      # container sees it*, which is why it is mounted read-only below. Leaving
+      # it empty is supported: the writes then report that the camera is saved
+      # and its stream goes live at the sidecar's next boot.
+      GO2RTC_COMPOSE_FILE: ${GO2RTC_COMPOSE_FILE:-}
+      GO2RTC_COMPOSE_SERVICE: ${GO2RTC_COMPOSE_SERVICE:-go2rtc}
+      GO2RTC_COMPOSE_BIN: ${GO2RTC_COMPOSE_BIN:-docker}
+      GO2RTC_RESTART_TIMEOUT: ${GO2RTC_RESTART_TIMEOUT:-60s}
+      GO2RTC_RESTART_SETTLE: ${GO2RTC_RESTART_SETTLE:-2s}
+      GO2RTC_RESTART_PROBE_BUDGET: ${GO2RTC_RESTART_PROBE_BUDGET:-30s}
     ports:
       - "8080:8080"
     volumes:
       - nvr_data:/var/lib/nvr
+      # The two mounts below are the whole privilege of the restart: the socket,
+      # and this file. Both are opt-in — with no socket mounted set
+      # `GO2RTC_COMPOSE_FILE=` and the server states, in every camera write's
+      # answer, that the stream goes live at the sidecar's next boot.
+      # - /var/run/docker.sock:/var/run/docker.sock
+      # - ./docker-compose.prod.yml:/etc/nvrway/docker-compose.prod.yml:ro
     networks:
       - nvr_net
     healthcheck:

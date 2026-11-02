@@ -16,6 +16,44 @@ this same table as an env file.
 | `GO2RTC_RTSP_URL` | `rtsp://go2rtc:8554` | recorder ingest base |
 | `GO2RTC_PUBLIC_URL` | `http://localhost:1984` | browser-facing base for live view |
 | `GO2RTC_MJPEG_WIDTH`/`GO2RTC_MJPEG_HEIGHT`/`GO2RTC_MJPEG_FPS` | `640`/`360`/`5` | detection tap transcoding |
+| `GO2RTC_COMPOSE_FILE` | empty | compose project file the go2rtc service lives in; **empty disables the live restart** |
+| `GO2RTC_COMPOSE_DIR` | empty | project directory compose runs in (relative paths inside the project resolve as they do for the operator's own `docker compose up`) |
+| `GO2RTC_COMPOSE_SERVICE` | `go2rtc` | the compose service name the server recreates |
+| `GO2RTC_COMPOSE_BIN` | `docker` | compose binary (`docker` for the plugin, `docker-compose` for standalone) |
+| `GO2RTC_RESTART_TIMEOUT` | `60s` | bound on the recreate itself |
+| `GO2RTC_RESTART_SETTLE` | `2s` | grace before the first probe of the live stream map |
+| `GO2RTC_RESTART_PROBE_BUDGET` | `30s` | bound on waiting for the streams to appear |
+
+## The go2rtc restart (S3-07)
+
+go2rtc instantiates its streams **at startup**. A camera write pushes the rendered
+config (`POST /api/config`, which writes the file and validates it), and the
+streams in that file are not live until the sidecar boots from it — measured on
+go2rtc 1.9.15 on 2026-11-02 (card S3-05's Notes). So making a camera live means
+recreating the sidecar, and the server does it:
+
+```
+<GO2RTC_COMPOSE_BIN> compose --project-directory <GO2RTC_COMPOSE_DIR> \
+    -f <GO2RTC_COMPOSE_FILE> up -d --no-deps --force-recreate <GO2RTC_COMPOSE_SERVICE>
+```
+
+`--no-deps` is what keeps it safe to run from inside the app: the recreate touches
+one service, the media sidecar, and not the manager, recorder, detector and media
+tier it lives beside.
+
+- **`GO2RTC_COMPOSE_FILE` empty is a supported installation**, not a broken one:
+  dev runs go2rtc outside compose. The writes then report that the camera is saved
+  and its stream goes live at the sidecar's next boot, and `GET
+  /api/v1/cameras/:id/probe` answers "present and offline" for a camera the running
+  sidecar has never booted.
+- This is a deliberate privilege exception, recorded on 2026-11-02: the app
+  container may recreate **its own go2rtc service**, which means it needs the
+  Docker socket and the project file mounted. It is scoped to one command, one
+  service, both named by configuration — the code contains no Docker client, and
+  the suite asserts the argument list.
+- A restart failure is its own answer: `502` with `config_applied: true`,
+  `sidecar_restarted: false` and compose's own words. The camera row stays, the
+  next write repairs it, and the ledger has the attempt.
 | `WORKER_TOKEN` | empty → internal API disabled | bearer for `/api/internal/*` |
 | `BOOTSTRAP_ADMIN_USER`/`BOOTSTRAP_ADMIN_PASSWORD` | `admin` / empty | empty password = no local admin created |
 | `OIDC_ISSUER`,`OIDC_CLIENT_ID`,`OIDC_CLIENT_SECRET` | empty | seeds provider row `oidc` on first boot (discovery at boot; failure logs, never fatal) |

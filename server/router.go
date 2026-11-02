@@ -10,6 +10,7 @@ import (
 	"nvr/server/config"
 	"nvr/server/go2rtc"
 	"nvr/server/models"
+	"nvr/server/sidecar"
 	"nvr/server/store"
 )
 
@@ -97,6 +98,14 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) (*gin.E
 	// config through the same handler set, which is what keeps it a single write
 	// path (S3-05).
 	handlers.Go2rtc = go2rtc.NewClient(cfg)
+
+	// Step 3 (S3-07): making a camera write live means recreating the sidecar,
+	// because go2rtc instantiates its streams at startup. The restarter is built
+	// next to the client so they point at the same sidecar, and an installation
+	// with no compose project configured gets the Noop — the writes report that
+	// the stream goes live at the sidecar's next boot, instead of shelling out at
+	// a path nobody set.
+	handlers.Restarter = sidecar.NewRestarter(cfg, handlers.Go2rtc)
 
 	handlers.Register(router)
 

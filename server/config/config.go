@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Version and GitCommit are stamped at build time via
@@ -75,6 +76,21 @@ type Config struct {
 	Go2rtcMjpegWidth  int
 	Go2rtcMjpegHeight int
 	Go2rtcMjpegFPS    int
+
+	// The go2rtc restart (S3-07). A config write is durable and not live: go2rtc
+	// instantiates its streams at startup, so making a new camera live means
+	// recreating the sidecar. Empty Go2rtcComposeFile disables the restart, which
+	// is a stated state and not a crash — dev runs go2rtc outside compose.
+	Go2rtcComposeFile    string
+	Go2rtcComposeDir     string
+	Go2rtcComposeService string
+	Go2rtcComposeBin     string
+	// Go2rtcRestartTimeout bounds the recreate; Go2rtcRestartSettle is the grace
+	// before the first probe; Go2rtcRestartProbeBudget bounds the wait for the
+	// streams to appear.
+	Go2rtcRestartTimeout     time.Duration
+	Go2rtcRestartSettle      time.Duration
+	Go2rtcRestartProbeBudget time.Duration
 
 	// WorkerToken is the bearer the detection worker presents on
 	// /api/internal/*. Empty is the internal API switched off, not unauthenticated.
@@ -162,6 +178,14 @@ func Load() *Config {
 		Go2rtcMjpegWidth:  getEnvInt("GO2RTC_MJPEG_WIDTH", 640),
 		Go2rtcMjpegHeight: getEnvInt("GO2RTC_MJPEG_HEIGHT", 360),
 		Go2rtcMjpegFPS:    getEnvInt("GO2RTC_MJPEG_FPS", 5),
+
+		Go2rtcComposeFile:        getEnv("GO2RTC_COMPOSE_FILE", ""),
+		Go2rtcComposeDir:         getEnv("GO2RTC_COMPOSE_DIR", ""),
+		Go2rtcComposeService:     getEnv("GO2RTC_COMPOSE_SERVICE", "go2rtc"),
+		Go2rtcComposeBin:         getEnv("GO2RTC_COMPOSE_BIN", "docker"),
+		Go2rtcRestartTimeout:     getEnvDuration("GO2RTC_RESTART_TIMEOUT", 60*time.Second),
+		Go2rtcRestartSettle:      getEnvDuration("GO2RTC_RESTART_SETTLE", 2*time.Second),
+		Go2rtcRestartProbeBudget: getEnvDuration("GO2RTC_RESTART_PROBE_BUDGET", 30*time.Second),
 
 		WorkerToken: getEnv("WORKER_TOKEN", ""),
 
@@ -278,6 +302,23 @@ func (c *Config) EnsureDirs() error {
 // getEnvInt reads a non-negative integer. Zero is a value (keep remote forever,
 // no burst), so it is accepted; an unparseable value is stated in the log and
 // the default is used.
+// getEnvDuration reads a duration (`60s`, `1m30s`, `500ms`). A value that does
+// not parse is announced and defaulted, in the package's standing habit: an
+// operator's `GO2RTC_RESTART_TIMEOUT=60` meaning "60 seconds" is worth a log line
+// more than it is worth a server that waits 60 nanoseconds.
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	raw, ok := os.LookupEnv(key)
+	if !ok || raw == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < 0 {
+		log.Printf("config: %s=%q is not a duration (use 500ms, 30s, 1m); using the default %s", key, raw, fallback)
+		return fallback
+	}
+	return d
+}
+
 func getEnvInt(key string, fallback int) int {
 	raw, ok := os.LookupEnv(key)
 	if !ok || raw == "" {

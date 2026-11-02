@@ -14,6 +14,7 @@ import (
 
 	"nvr/server/go2rtc"
 	"nvr/server/models"
+	"nvr/server/sidecar"
 	"nvr/server/store"
 )
 
@@ -68,6 +69,12 @@ type Go2rtcBootReport struct {
 	Cameras  int    `json:"cameras"`
 	Detected int    `json:"streams_detection_taps"`
 	Reason   string `json:"reason"`
+
+	// Restarted says the boot found the live map missing configured cameras and
+	// recreated the sidecar (S3-07); RestartNote carries what it did, including
+	// the disabled-restart case.
+	Restarted   bool   `json:"sidecar_restarted"`
+	RestartNote string `json:"sidecar_restart"`
 }
 
 // BootstrapGo2rtc is the boot step (S3-05): probe the sidecar, then apply the
@@ -108,7 +115,7 @@ func (h *Handlers) BootstrapGo2rtc(ctx context.Context) (*Go2rtcBootReport, erro
 	}
 	report.Cameras = len(cameras)
 
-	if err := h.ApplyCameraConfig(ctx); err != nil {
+	if _, err := h.applyCameraConfig(ctx, false); err != nil {
 		if report.Reason != "" {
 			report.Reason = fmt.Sprintf("%s; config not applied: %v", report.Reason, err)
 		} else {
@@ -117,7 +124,49 @@ func (h *Handlers) BootstrapGo2rtc(ctx context.Context) (*Go2rtcBootReport, erro
 		return report, errors.New(report.Reason)
 	}
 	report.Applied = true
+
+	// The file is written; is the sidecar running it? A boot applies a file the
+	// running sidecar may not match — the rows changed while it was down — and
+	// go2rtc instantiates streams only at startup (S3-07). Recreate it when the
+	// live map is missing configured cameras, and not when it is not: a boot that
+	// force-recreates the media sidecar every time drops the Live view of every
+	// viewer who just connected.
+	report.Restarted, report.RestartNote = h.ensureLive(ctx, cameraSlugs(cameras))
 	return report, nil
+}
+
+// ensureLive recreates the sidecar when the live map is missing configured
+// streams. It reports what it did in words the boot log and the console can use,
+// including the honest disabled case: "no compose project configured, the streams
+// go live at the sidecar's next boot".
+func (h *Handlers) ensureLive(ctx context.Context, desired []string) (bool, string) {
+	if len(desired) == 0 {
+		return false, "no cameras configured"
+	}
+	if h.Go2rtc == nil {
+		return false, "no go2rtc sidecar is configured"
+	}
+	streams, err := h.Go2rtc.Streams(ctx)
+	if err != nil {
+		return false, fmt.Sprintf("the sidecar is not answering, so nothing was restarted: %v", err)
+	}
+	missing := make([]string, 0, len(desired))
+	for _, slug := range desired {
+		if _, ok := streams[slug]; !ok {
+			missing = append(missing, slug)
+		}
+	}
+	if len(missing) == 0 {
+		return false, "the live map already matches the camera rows"
+	}
+	report, err := h.restartSidecar(ctx, desired)
+	if err != nil {
+		return true, fmt.Sprintf("restarted for %d stream(s) missing from the live map, and it did not come back clean: %v", len(missing), err)
+	}
+	if len(report.Missing) > 0 {
+		return true, fmt.Sprintf("restarted; %d stream(s) still absent from the live map: %s", len(report.Missing), strings.Join(report.Missing, ", "))
+	}
+	return true, fmt.Sprintf("restarted; %d stream(s) live", len(report.Live))
 }
 
 // cameraView is a camera row as the console reads it. `zones` is the parsed rule
@@ -665,18 +714,68 @@ func (h *Handlers) removeLocalCameraMedia(camera *models.Camera, segments []mode
 // applies it. S3-05: this is the only path that writes the sidecar's config, and
 // the boot sequence calls this same function.
 func (h *Handlers) ApplyCameraConfig(ctx context.Context) error {
+	_, err := h.applyCameraConfig(ctx, true)
+	return err
+}
+
+// applyCameraConfig renders, applies, and (when `live`) restarts the sidecar so
+// the streams in that file are the streams the sidecar is running.
+//
+// The restart is the second half of the write, and the order is not negotiable:
+// restarting with an old file boots the sidecar on the old camera list. The
+// restart is therefore after a successful apply, and a failed apply restarts
+// nothing — recreating the sidecar to fix a config the sidecar refused is how a
+// working stream set becomes a broken one.
+func (h *Handlers) applyCameraConfig(ctx context.Context, live bool) (sidecar.Report, error) {
 	if h.Go2rtc == nil {
-		return errors.New("no go2rtc sidecar is configured (GO2RTC_URL)")
+		return sidecar.Report{}, errors.New("no go2rtc sidecar is configured (GO2RTC_URL)")
 	}
 	cameras, err := h.St.Cameras.ListActive()
 	if err != nil {
-		return fmt.Errorf("the camera rows are unreadable: %w", err)
+		return sidecar.Report{}, fmt.Errorf("the camera rows are unreadable: %w", err)
 	}
 	yml, err := go2rtc.RenderConfig(cameras, h.Cfg)
 	if err != nil {
-		return err
+		return sidecar.Report{}, err
 	}
-	return h.Go2rtc.ApplyConfig(ctx, yml)
+	if err := h.Go2rtc.ApplyConfig(ctx, yml); err != nil {
+		return sidecar.Report{}, err
+	}
+	if !live {
+		return sidecar.Report{Desired: cameraSlugs(cameras)}, nil
+	}
+	return h.restartSidecar(ctx, cameraSlugs(cameras))
+}
+
+// restartSidecar is the counted, reported restart. The counter exists because the
+// contract this suite asserts is a count: create/update/delete restart once each,
+// a zone write restarts none.
+func (h *Handlers) restartSidecar(ctx context.Context, desired []string) (sidecar.Report, error) {
+	h.RestartCalls++
+	restarter := h.Restarter
+	if restarter == nil {
+		restarter = &sidecar.Noop{Reason: sidecar.ErrNotConfigured.Error()}
+	}
+	report, err := restarter.Restart(ctx, desired)
+	if err != nil {
+		err = fmt.Errorf("%w: %v", sidecar.ErrRestart, err)
+	}
+	h.LastRestart = report
+	h.LastRestartErr = err
+	return report, err
+}
+
+// cameraSlugs are the stream names the rendered file declares. The detection
+// taps are included: they are streams the sidecar has to instantiate too.
+func cameraSlugs(cameras []models.Camera) []string {
+	slugs := make([]string, 0, len(cameras)*2)
+	for _, cam := range cameras {
+		slugs = append(slugs, cam.Slug)
+		if cam.DetectionEnabled {
+			slugs = append(slugs, cam.Slug+go2rtc.DetectionSuffix)
+		}
+	}
+	return slugs
 }
 
 // reportConfigFailure answers a write whose rows landed and whose config did not.
@@ -688,6 +787,19 @@ func (h *Handlers) ApplyCameraConfig(ctx context.Context) error {
 // saved, the sidecar did not take the config, and why.
 func (h *Handlers) reportConfigFailure(c *gin.Context, savedStatus int, camera *models.Camera, err error) {
 	_ = savedStatus
+	if errors.Is(err, sidecar.ErrRestart) {
+		// The rows landed, the sidecar took the config, and the recreate failed.
+		// The camera is saved and its stream is not live: a different repair
+		// (restart the sidecar, check the deploy) from a config the sidecar
+		// refused, and the body says which one it is.
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error":             fmt.Sprintf("camera saved, sidecar not restarted: %v", err),
+			"camera":            h.cameraView(camera),
+			"config_applied":    true,
+			"sidecar_restarted": false,
+		})
+		return
+	}
 	c.JSON(http.StatusBadGateway, gin.H{
 		"error":          fmt.Sprintf("camera saved, go2rtc config not applied: %v", err),
 		"camera":         h.cameraView(camera),
