@@ -68,18 +68,74 @@ Majors, from the host's own `/proc/devices`: `195 nvidia` / `nvidiactl`,
 `506 nvidia-uvm`, `509 nvidia-caps`. If PVE shows `no_new_privs` on this container,
 turn it off — nested Docker needs it off.
 
-## 3. Container: prove each layer
+## 2b. The node that decides whether CUDA works
 
-In this order; each line proves the layer above it and fails loudly if that layer
-is missing.
+The list above was run on 2026-11-02 and the GPU came alive — `nvidia-smi`, CDI,
+`--gpus all`. **CUDA still fails**, with `CUDA failure 999: unknown error ;
+GPU=-1` at `cudaSetDevice`, because `/dev/nvidia-uvm` is not in the container
+(`nvidia0`, `nvidiactl` and `nvidia-uvm-tools` are). NVML does not open
+`/dev/nvidia-uvm`; the CUDA runtime does, and without it no context is created.
 
 ```sh
-nvidia-smi                                   # host nodes + container userspace
-sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
-sudo nvidia-ctk cdi list                     # expect 1 CDI device
-docker run --rm --gpus all ubuntu:24.04 \
-  sh -c 'ls /dev/nvidia*; ldconfig -p | grep -c libcuda'
+CT=$(pct list | awk '/piWay/{print $1}')
+# On the host, this is what creates the node (the module must be loaded):
+nvidia-modprobe -u -c=0
+ls -l /dev/nvidia-uvm                     # c 506 0 — if it is missing, containers cannot fix it
+pct set "$CT" --lxc-args "lxc.mount.entry = /dev/nvidia-uvm dev/nvidia-uvm none bind,optional,create=file"
+pct restart "$CT"
 ```
+
+Then regenerate the CDI spec **in the container** — the spec inherits whatever
+nodes exist where it is generated, and a spec generated without `/dev/nvidia-uvm`
+hands every container a GPU that CUDA cannot initialise:
+
+```sh
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+grep -c '/dev/nvidia-uvm' /etc/cdi/nvidia.yaml      # must be ≥ 1
+```
+
+## 2c. Which CUDA, and from where
+
+Measured on 2026-11-02 with the plan's pin (`onnxruntime==1.31.1`):
+
+- It requires **CUDA 13.x + cuDNN 9.x**. With CUDA 12 wheels the provider will not
+  load: `libcublasLt.so.13: cannot open shared object file`. This box's driver
+  reports `CUDA UMD Version: 13.4`, so CUDA 12 is the wrong build for it.
+- From PyPI: `nvidia-cudnn-cu13` is a real wheel (`9.27.0.42`). `nvidia-cublas-cu13`
+  and `nvidia-cuda-runtime-cu13` are `0.0.1` sdists that fail to build — **get
+  `libcudart.so.13`/`libcublasLt.so.13` from the CUDA image** (e.g.
+  `nvidia/cuda:13.1.0-runtime-ubuntu24.04`) **or apt**, not from pip.
+- The plan's Step 9 GPU overlay (S5-07) has to carry that: a CUDA-13 base plus
+  `pip install nvidia-cudnn-cu13`, and the CPU provider as the fallback the plan
+  already requires.
+
+## 3. Container: prove each layer
+
+`scripts/gpu-probe.sh` runs the ladder below, in order, and names the layer that
+failed. Add `--cuda` for the compute test (it pulls ~2 GB; it is the test that
+answers "can the detector run here").
+
+```sh
+scripts/gpu-probe.sh
+scripts/gpu-probe.sh --cuda
+```
+
+Which is, by hand:
+
+```sh
+nvidia-smi --query-gpu=name,compute_cap,memory.total --format=csv,noheader
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+sudo nvidia-ctk cdi list
+docker run --rm --gpus all ubuntu:24.04 sh -c 'ls /dev/nvidia*; ldconfig -p | grep -c libcuda'
+docker run --rm --gpus all nvidia/cuda:13.1.0-runtime-ubuntu24.04 bash -lc \
+  'pip install --break-system-packages onnxruntime-gpu==1.31.1 numpy onnx nvidia-cudnn-cu13 && \
+   python3 -c "import onnxruntime as o; print(o.get_available_providers())"'
+```
+
+**Current state on this box (2026-11-02, after §2 ran):** lines 1–4 pass,
+`/dev/nvidia-uvm` is missing (§2b), and the CUDA layer fails at `cudaSetDevice`
+with 999. Nothing in Steps 3–4 depends on the GPU; the CPU detector path is
+unaffected, and S5-07's CUDA overlay is what §2b closes.
 
 When those four are green, Step 5's CUDA overlay (S5-07) has a test target and
 `S5-06`'s GPU test target exists. Until then the detector's CPU path (S5-06) is
