@@ -1,0 +1,161 @@
+# nvrWay — production compose
+#
+# Skeleton from the plan's Step 0 (card S0-03); content is card S9-05. Same
+# services as docker/docker-compose.yml with three differences: images are
+# published, nothing is built, and MinIO is absent.
+#
+# Images are published from tags only (`:latest` is always a stable release,
+# `:edge` follows main — OurWay's semantics, docs/versioning.md). Pin
+# X.Y.Z on a fleet that must not move on its own.
+
+name: nvr
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nvr-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nvr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
+      POSTGRES_DB: ${POSTGRES_DB:-nvr}
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nvr_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nvr} -d ${POSTGRES_DB:-nvr}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: &nvr_logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  go2rtc:
+    image: ghcr.io/alexxit/go2rtc:master
+    container_name: nvr-go2rtc
+    restart: unless-stopped
+    environment:
+      GO2RTC_API: ":1984"
+      GO2RTC_RTSP: ":8554"
+      GO2RTC_WEBRTC: ":8555"
+      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
+      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
+      TZ: UTC
+    ports:
+      - "1984:1984"
+      - "8554:8554"
+      - "8555:8555"
+      - "8555:8555/udp"
+    volumes:
+      - go2rtc_config:/config
+    networks:
+      - nvr_net
+    logging: *nvr_logging
+
+  server:
+    # Published, never built here (S9-05): no build section in this file.
+    image: ghcr.io/welcometotheweb/nvr/server:latest
+    container_name: nvr-server
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      go2rtc:
+        condition: service_started
+    environment:
+      SERVER_PORT: ":8080"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-nvr}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/${POSTGRES_DB:-nvr}?sslmode=disable"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (openssl rand -hex 32)}
+      NVR_SECRET_KEY: ${NVR_SECRET_KEY:-}
+      DATA_DIR: /var/lib/nvr
+      GO2RTC_URL: "http://go2rtc:1984"
+      GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
+      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
+      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
+      # Required in production, and the only value here the *browser* uses:
+      # live view dials go2rtc directly, not the server (S8-04, S8-05).
+      GO2RTC_PUBLIC_URL: ${GO2RTC_PUBLIC_URL:?GO2RTC_PUBLIC_URL is required — the address the console's browser can reach}
+      WORKER_TOKEN: ${WORKER_TOKEN:-}
+      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      TZ: UTC
+    ports:
+      - "8080:8080"
+    volumes:
+      - nvr_data:/var/lib/nvr
+    networks:
+      - nvr_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging: *nvr_logging
+
+  detector:
+    image: ghcr.io/welcometotheweb/nvr/detector:latest
+    container_name: nvr-detector
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    environment:
+      NVR_SERVER_URL: "http://server:8080"
+      NVR_WORKER_TOKEN: ${WORKER_TOKEN:-}
+      DET_PROVIDERS: ${DET_PROVIDERS:-CPUExecutionProvider}
+      TZ: UTC
+    volumes:
+      - nvr_models:/models
+    networks:
+      - nvr_net
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'pgrep -f nvr_detector' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *nvr_logging
+
+  web:
+    image: ghcr.io/welcometotheweb/nvr/web:latest
+    container_name: nvr-web
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:8080"
+    networks:
+      - nvr_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging: *nvr_logging
+
+  # No MinIO in production: this is where an operator's own S3 / WebDAV / SFTP
+  # / NFS tier is configured through the API, not compose (S7-10).
+
+networks:
+  nvr_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  go2rtc_config:
+    driver: local
+  nvr_data:
+    driver: local
+  nvr_models:
+    driver: local

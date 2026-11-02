@@ -1,0 +1,41 @@
+# go2rtc base config — skeleton (card S0-03)
+#
+# This is the *base* the server renders from. `server/go2rtc/config.go`
+# (card S3-02) produces the full go2rtc.yaml as a pure function of the camera
+# rows and pushes it with `POST /api/config` (card S3-01); the server also
+# applies it at boot after a `Streams` probe (S3-05). Nothing here is
+# hand-edited at runtime: a stream that is not derived from a camera row is a
+# stream the database does not know about, which is exactly the drift the
+# design forbids.
+#
+# Rendered shape (the golden file of S3-02 asserts these exact bytes):
+#
+#   api:    { listen: ":1984", origin: "*" }
+#   rtsp:   { listen: ":8554" }
+#   webrtc: { listen: ":8555" }
+#   streams:
+#     <slug>: ["<source_uri>"]
+#     <slug>_det: ["ffmpeg:<slug>#video=mjpeg#width=640#height=360#raw=-r 5"]
+#
+# Rules the renderer owns:
+#   - `<slug>` is the camera slug verbatim, validated ^[a-z0-9][a-z0-9-]{1,31}$
+#     and unique — slug is the stream name, so there is no mapping table.
+#   - `<slug>_det` is emitted only when detection is enabled; width/height/fps
+#     come from the camera row, falling back to GO2RTC_MJPEG_WIDTH /
+#     GO2RTC_MJPEG_HEIGHT / GO2RTC_MJPEG_FPS.
+#   - Exactly one demo-only rule exists, for slug `demo-doorbell`, and it is
+#     documented as demo-only (S10-02).
+#   - API basic auth is GO2RTC_USERNAME / GO2RTC_PASSWORD, the same pair the
+#     server's client sends.
+
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
+streams: {}

@@ -1,0 +1,68 @@
+# =============================================================================
+# nvrWay Server — multi-stage Docker build (skeleton, card S0-03)
+# =============================================================================
+# The shape is the plan's Step 9 (card S9-01 builds and verifies this); the
+# structure is OurWay's docker/Dockerfile.server (MIT).
+#
+# Build:  docker build -f docker/Dockerfile.server --build-arg VERSION=0.1.0 -t nvr/server .
+# Run:    the `server` service in docker/docker-compose.yml
+# =============================================================================
+
+ARG VERSION=0.1.0
+ARG GIT_COMMIT=unknown
+
+# --- Stage 1: build the Go binary ------------------------------------------------
+FROM golang:1.26-alpine AS builder
+
+ARG VERSION
+ARG GIT_COMMIT
+
+WORKDIR /app/server
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Layer-cached dependency download: go.sum changes far less often than source.
+COPY server/go.mod server/go.sum ./
+RUN go mod download
+
+COPY server/ ./
+
+# The version stamp is embedded in config, which /health reports (S1-01).
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags "-s -w -X nvr/server/config.Version=${VERSION} -X nvr/server/config.GitCommit=${GIT_COMMIT}" \
+    -o /app/server_bin .
+
+# --- Stage 2: runtime -----------------------------------------------------------
+# ffmpeg is a runtime dependency, not a build-time one: the recorder and the
+# clip builder shell out to it (S4-02, S6-01), so the image carries it.
+FROM alpine:3.20
+
+ARG VERSION
+
+LABEL org.opencontainers.image.title="nvrWay Server"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.description="nvrWay self-hosted NVR control plane"
+
+RUN apk add --no-cache ffmpeg ca-certificates tzdata \
+    && addgroup -S nvr \
+    && adduser -S -G nvr nvr
+
+WORKDIR /app
+RUN mkdir -p /var/lib/nvr && chown -R nvr:nvr /app /var/lib/nvr
+
+COPY --from=builder /app/server_bin /app/server
+
+# Non-root: the process that owns the media tree must not be root.
+USER nvr:nvr
+
+EXPOSE 8080
+
+# Liveness, the same check as the compose healthcheck (S1-13, S9-01).
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s \
+    CMD wget -q --spider http://localhost:8080/health || exit 1
+
+ENV SERVER_PORT=:8080
+ENV DATA_DIR=/var/lib/nvr
+ENV TZ=UTC
+
+CMD ["/app/server"]

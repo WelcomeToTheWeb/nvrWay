@@ -1,0 +1,67 @@
+# =============================================================================
+# nvrWay Detection worker — multi-stage Docker build (skeleton, card S0-03)
+# =============================================================================
+# Content is card S9-02; the model provenance story is S5-12.
+#
+# The host's Python cannot host this worker (no pip/venv on the host Python),
+# so every Python task — including the test suites — runs inside this image.
+#
+# Build:  docker build -f docker/Dockerfile.detector -t nvr/detector .
+# Run:    the `detector` service in docker/docker-compose.yml
+# =============================================================================
+
+# --- Stage 1: export the model --------------------------------------------------
+# yolov8n.pt is fetched from the pinned URL of Step 5 and exported to ONNX at
+# build time; the weights are never committed to the repo (README's License
+# section, attribution in testdata/fixtures.json — S5-12).
+FROM python:3.12-slim AS export
+
+RUN pip install --no-cache-dir ultralytics==8.4.195 onnx==1.17.0
+
+# Pinned URL; a build with no network fails loudly here rather than shipping a
+# runtime image with no model.
+RUN mkdir -p /models && \
+    python - <<'PY'
+import urllib.request
+URL = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt"
+urllib.request.urlretrieve(URL, "/models/yolov8n.pt")
+PY
+
+RUN python -c "from ultralytics import YOLO; YOLO('/models/yolov8n.pt').export(format='onnx', imgsz=640, opset=17, dynamic=False)"
+
+# --- Stage 2: runtime -----------------------------------------------------------
+# CPU ONNX is the verified baseline: CUDAExecutionProvider needs the NVIDIA
+# container toolkit on the host and is an overlay (docker-compose.gpu.yml,
+# S9-06), not the default of this image.
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir \
+        onnxruntime==1.31.1 \
+        opencv-python-headless==5.0.0.93 \
+        numpy \
+        requests \
+        pydantic \
+        pytest
+
+RUN groupadd -r nvr && useradd -r -g nvr nvr
+
+WORKDIR /app
+COPY detector/ ./
+RUN pip install --no-cache-dir -e .
+
+# The exported model, and a writable home for the heartbeat/config cache the
+# worker keeps.
+COPY --from=export /models/yolov8n.onnx /models/yolov8n.onnx
+RUN chown -R nvr:nvr /models /app
+
+USER nvr:nvr
+
+ENV DET_PROVIDERS=CPUExecutionProvider
+ENV NVR_SERVER_URL=http://server:8080
+ENV NVR_MODEL_PATH=/models/yolov8n.onnx
+ENV TZ=UTC
+
+# Liveness is data, not a listener: the worker POSTs
+# /api/internal/v1/heartbeat every 30 s and /api/healthz reports fresh/stale
+# (S9-07). The container healthcheck is therefore the process check.
+CMD ["python", "-m", "nvr_detector"]
