@@ -328,6 +328,18 @@ func (l *RateLimiter) PerMinute() int { return l.perMin }
 // Burst reports the instantaneous ceiling an empty bucket will hand out.
 func (l *RateLimiter) Burst() int { return l.burst }
 
+// SetClock replaces the limiter's clock. A rate limit is the one part of this
+// surface a test cannot wait out — a minute is a minute — so the clock is a seam,
+// and the handler set hands every clock it owns to one.
+func (l *RateLimiter) SetClock(now func() time.Time) {
+	if now == nil {
+		now = time.Now
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.now = now
+}
+
 // Middleware enforces the budget per account, falling back to the client address
 // for requests that have no account yet (login, status). Keying the unauthenticated
 // requests by address is what makes `POST /api/auth/login` sit behind the budget:

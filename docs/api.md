@@ -43,11 +43,39 @@ the reason the client does not get), `auth.refresh`, `auth.logout`,
 
 ## SSO (OIDC)
 
-`GET /api/auth/sso/providers` (public), `GET /api/auth/sso/:provider/authorize`,
-`GET /api/auth/sso/:provider/callback`, `POST /api/auth/sso/exchange` (the
-fragment handoff and the JIT `viewer` floor, S2-07, S2-11). Admin: provider
-list/create/update/delete, discovery, test. State the exact redirect URI
-string the operator must whitelist in their IdP.
+Public: `GET /api/auth/sso/providers` — `{"providers":[{"provider","name",
+"issuer","redirect_uri","link_policy","scopes","pkce_supported","discovery"}]}`.
+`redirect_uri` is the exact string the operator whitelists:
+`${WEB_URL}/api/auth/sso/<provider>/callback`.
+
+`GET /api/auth/sso/:provider/authorize` records the state (nonce + PKCE verifier
++ redirect URI, five minutes, **single use** — the callback consumes it) and
+redirects `302` to the IdP with `state`, `nonce` and the `S256` challenge. A row
+whose registered redirect URI is not the one this router mounts answers `422`
+with the string to whitelist.
+
+`GET /api/auth/sso/:provider/callback` → on success `302` to
+`${WEB_URL}/auth/callback#access_token=…&refresh_token=…` — the SPA handoff, in a
+fragment so no server ever receives the tokens. On refusal the same page, with
+the contract's reason: `#error=<reason>&provider=<name>&error_description=…`
+(+ `pending_identity=<id>` when a queue row was created). The reasons are
+`state_mismatch`, `state_expired`, `provider_disabled`, `code_exchange_failed`,
+`domain_not_allowed`, `email_unverified`, `no_email_claim`, `identity_pending`,
+`subject_missing`, `id_token_userinfo_disagreement`, `id_token_verification_failed`,
+`nonce_mismatch` — each one a different fix on the IdP side, and each one a ledger
+row (`sso.login_refused`) naming the subject and email the assertion carried.
+
+`POST /api/auth/sso/exchange` (bearer) → the profile shape above, roles included.
+It is the console's check that the token it caught from the fragment is its own.
+
+The queue: `GET /api/identities?status=pending|all` (admin),
+`POST /api/identities/:id/approve` (its own account, `viewer` floor),
+`POST /api/identities/:id/link` (body `{"user_id"}`; merges the assertion into that
+account, clears its password door, closes its live sessions and invalidates its
+access tokens; the roles are untouched), `POST /api/identities/:id/refuse` (body
+`{"reason"}` required). All three are audited (`identity.approve`,
+`identity.link`, `identity.refuse`), all three refuse a row that is already
+decided with `409` (S2-07, S2-09).
 
 ## Roles and the role floor
 

@@ -78,16 +78,43 @@ the `exec:…` source shape the demo camera uses.
 ## 7. OIDC provider setup
 
 `PUT /api/settings/oidc` with `issuer`, `client_id`, `client_secret`, and the
-role claim + `group=role` mapping. State the **exact redirect URI the
-operator must whitelist**:
+role claim + `group=role` mapping. Discovery runs at save time, and the row
+carries what the IdP said (its endpoints, the signing algorithms it publishes,
+whether it accepts `S256`) — the login is built from that, not from guesses.
+
+**The redirect URI the operator must whitelist, verbatim:**
 
 ```
 ${WEB_URL}/api/auth/sso/<provider>/callback
 ```
 
-…with a worked example on the default ports, the `viewer` JIT floor (what a
-new SSO user can do before you map a role), the email-verified gate, the
-allow-list, and the `link_policy=pending` path.
+On the default ports, with `WEB_URL=http://localhost:3000` and a provider named
+`oidc`, that is exactly:
+
+```
+http://localhost:3000/api/auth/sso/oidc/callback
+```
+
+`GET /api/auth/sso/providers` answers this string per provider
+(`redirect_uri`), and the authorize route refuses with it in the message when
+the row carries a different one — the 422 says the string to paste, because
+`invalid_redirect_uri` from the IdP is the failure this setup produces.
+
+After that, in the IdP: the confidential client's secret, and one registered
+redirect URI per provider row. Then, per provider row, the four contract knobs
+and their effect on a real login:
+
+| Knob | What it does to a login |
+|---|---|
+| **`viewer` JIT floor** | A new SSO user is provisioned as `viewer` and nothing else: they watch, they do not change. A new user sees an empty event list until you map a role. |
+| **Role mapping** | `group=role` maps an IdP group to a role on *every* login, so an IdP that drops someone out of `nvr-operators` takes their `operator` role at the next sign-in. An empty mapping is not "everyone is admin": the floor stands. `operator` and `admin` are refused in the mapping response when no role row owns them (422), because mapping to a role nobody can un-grant is the same dead end as the break-glass admin with no password. |
+| **`require_verified_email`** | Default on: the login requires the provider's signed `email_verified` claim. An IdP that does not assert it is switched off for this gate, or everyone is locked out. |
+| **`allowed_domains`** | An allow-list on the asserted email's domain. Empty is no restriction; a list is a wall. |
+| **`link_policy=pending`** | The default. An assertion whose email belongs to an existing account is **not** that account: the login is refused, the assertion is parked in `GET /api/identities`, and an admin approves it (its own account, `viewer` floor), links it (merged into the account it pointed at, audited, that account's old tokens stopped), or refuses it. `link_policy=link` is the operator's explicit choice to keep match-by-email, and it is audited too. |
+
+There is no way to lock the break-glass admin out of the installation: its
+password door is never closed by a link (`GET /api/users/:id` reports
+`password_login: true` for it), and deleting the last admin is refused.
 
 ## 8. Storage tier setup
 

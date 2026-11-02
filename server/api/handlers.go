@@ -1,11 +1,30 @@
+// Package api is the console's HTTP surface: the handler set every step mounts
+// its routes into, the middleware that guards them, and the shapes the console
+// and scripts/verify.sh read.
+//
+// Three things are decided here rather than discovered later:
+//
+//   - The bearer header is the only REST credential. `?token=` is accepted on
+//     `/ws` and nowhere else, and that exception is written down in SECURITY.md
+//     rather than inherited as a habit.
+//   - Every refusal is a ledger row. A 403 that the operator cannot reconstruct
+//     ("who tried, when, on what") is a 403 that turns into a developer reading
+//     server logs at 2 a.m.
+//   - The routes' response bodies are the contract. `docs/api.md` states them,
+//     `scripts/verify.sh` greps them, and the console draws its screens from
+//     them, so a handler's job is to answer in names, at the status the plan
+//     names.
 package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"nvr/server/auth"
 	"nvr/server/config"
@@ -15,65 +34,71 @@ import (
 	"nvr/server/ws"
 )
 
-// Handlers is the mounted HTTP surface, with the things the routes need.
-//
-// The constructor takes the store, the JWT service, the hub and the config —
-// the plan's boot order (Step 2's `api.NewHandlers(ctx, st, jwtAuth, hub, cfg)`)
-// — because a handler that reaches for a global is a handler that cannot be
-// built twice, and every suite in this package builds one.
-//
-// `ctx` is the server lifecycle context. It is carried, not used yet: the
-// recorder (Step 4), the uploader and the sweeper (Step 7) start from the
-// routes' work, and they must stop when the process stops.
+// Handlers is the mount point. Steps 3–7 add their routes to it, so every route
+// in the product runs behind the same gates, the same rate limiter and the same
+// ledger.
 type Handlers struct {
-	Cfg   *config.Config
-	St    *store.Store
-	JWT   *auth.JWTAuth
-	Hub   *ws.Hub
+	Cfg *config.Config
+	St  *store.Store
+	JWT *auth.JWTAuth
+	// Hub is the live feed. nil means the `/ws` route is not mounted: the hub is
+	// a listener with no recorder feeding it, and a socket that connects to
+	// nothing is a console that believes it is live.
+	Hub *ws.Hub
+	// OAuth is S2-04's contract: the code exchange, the signed-token verification
+	// and the identity gate. The routes here are thin over it.
 	OAuth *sso.OAuthHandler
-
-	// Limiter is the REST budget (RATE_LIMIT_PER_MINUTE). The login route sits
-	// behind it, which is why it is a field: the console's own polling and a
-	// password guesser are separated by the limiter's key, not by the route.
+	// Limiter is the per-user REST budget.
 	Limiter *RateLimiter
 
+	// states is the server-side half of an SSO login in flight: the state value
+	// the redirect issued, with the nonce and PKCE verifier only this process
+	// knows. Short-lived and single-use (S2-07).
+	states *loginStates
+
+	// now is the clock. Every timestamp this surface writes — session expiry,
+	// state expiry, ledger `created_at` — comes from here, so a test can move
+	// time instead of sleeping through it.
 	now func() time.Time
 }
 
-// NewHandlers builds the surface. Nothing here talks to the network: discovery
-// runs when an operator saves a provider, not at boot.
+// NewHandlers builds the handler set. Passing a nil jwtAuth is not a hole: the
+// signing secret is configuration, and a handler set with no way to sign a token
+// cannot answer a login.
 func NewHandlers(ctx context.Context, st *store.Store, jwtAuth *auth.JWTAuth, hub *ws.Hub, cfg *config.Config) *Handlers {
-	if cfg == nil {
-		cfg = config.Load()
-	}
-	if jwtAuth == nil {
-		jwtAuth = auth.NewJWTAuth(cfg.JWTSecret)
-	}
-	return &Handlers{
+	h := &Handlers{
 		Cfg:     cfg,
 		St:      st,
 		JWT:     jwtAuth,
 		Hub:     hub,
-		OAuth:   sso.NewOAuthHandler(st, jwtAuth),
 		Limiter: NewRateLimiter(cfg.RateLimitPerMinute, cfg.RateLimitBurst),
+		states:  newLoginStates(time.Now),
 		now:     time.Now,
 	}
+	if h.JWT == nil {
+		h.JWT = auth.NewJWTAuth(cfg.JWTSecret)
+	}
+	h.OAuth = sso.NewOAuthHandler(st, h.JWT)
+	return h
 }
 
-// SetClock points every timestamp this surface writes at one clock. Tests use
-// it; the product runs on the wall clock.
+// SetClock points every timestamp this surface writes at one clock. Tests use it
+// to expire a state, to let a token age, and to prove a rate limit refills.
 func (h *Handlers) SetClock(now func() time.Time) {
 	if now == nil {
 		now = time.Now
 	}
 	h.now = now
+	h.states.now = now
+	h.Limiter.SetClock(now)
 }
 
-// Register mounts every route Step 2 owns.
+// Register mounts the route table of `docs/api.md`.
 //
-// The public auth group carries the rate limiter: password guessing arrives as a
-// machine, not as a user id, so the unauthenticated requests are keyed by
-// address.
+// The groups are the permission shape, not a folder layout: `public` is what a
+// person who is not signed in may reach (behind the rate limiter, because those
+// requests are the ones someone sends without an account), `session` is anything
+// that names an account, `admin` is the surface that changes who people are.
 func (h *Handlers) Register(r *gin.Engine) {
 	// The live feed. The hub reads `?token=` on the URL, which is the documented
 	// exception to the bearer-only rule (SECURITY.md names it).
@@ -86,16 +111,21 @@ func (h *Handlers) Register(r *gin.Engine) {
 	public.POST("/login", h.Login)
 	public.POST("/refresh", h.Refresh)
 	public.POST("/register", h.RegisterDisabled)
-	// The SSO routes (authorize / callback / exchange) are mounted by card S2-07
-	// in `sso_routes.go`, which owns the state record they stand on.
 
 	session := public.Group("", AuthMiddleware(h.JWT))
 	session.POST("/logout", h.Logout)
 	session.GET("/profile", h.Profile)
 	session.PUT("/password", h.ChangePassword)
 
-	// The user/role routes (S2-09) and the pending-identity routes (S2-07) are
-	// mounted by their own cards, in `users.go` and `sso_routes.go`.
+	h.registerSSORoutes(public, session)
+
+	// The admin surface: accounts, roles, the pending-identity queue and the
+	// ledger. The gate is the role check, and the denial is audited by the same
+	// middleware that answers it.
+	admin := r.Group("/api", AuthMiddleware(h.JWT), RequireRole(models.RoleAdmin, h.St.Audit))
+	h.registerIdentityRoutes(admin)
+	// The account and role routes arrive with S2-09, in `users.go`, on this same
+	// admin group.
 
 	// The detection worker's API. The gate is mounted now so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, before
@@ -109,26 +139,34 @@ type AuditTarget struct {
 	ID   string
 }
 
-// audit writes one ledger row for an act performed by the actor on this request.
+// audit writes the ledger row for an act performed by whoever the request
+// authenticated as.
 //
-// The writer is called by the handlers, not by middleware: middleware cannot know
-// the target or whether the act succeeded, and those two facts are the record.
+// The ledger is written from the request, not from a background worker, because
+// the row's whole value is that it names the actor and the source address of the
+// act that happened. A failure to write is deliberately not fatal: an audit row
+// that cannot be written must not turn a working installation into a 500, and a
+// refusal to a request is recorded in the response the client receives.
 func (h *Handlers) audit(c *gin.Context, action string, status int, target AuditTarget, details map[string]any) {
-	h.auditAs(c, actorFrom(c), action, status, target, details)
+	actor := models.AuditActor{}
+	if claims := ClaimsFrom(c); claims != nil {
+		// The provider column comes from the account row, not the token: S2-01's
+		// claims carry an id, a name and roles. A row written from claims alone
+		// leaves it empty, and the rows that name a person (`auditAs` with
+		// `actorOf`) fill it from the row that knows.
+		actor = models.AuditActor{
+			UserID:   claims.UserID,
+			Username: claims.Username,
+			Roles:    strings.Join(claims.Roles, ","),
+		}
+	}
+	h.auditAs(c, actor, action, status, target, details)
 }
 
-// auditAs writes a row for a named actor — the case a login refusal has, where
-// nobody is authenticated and the ledger still has to say who was tried.
+// auditAs writes a row for an actor the handler knows and the request does not —
+// the login path, where the account is established by the act being recorded, and
+// the failed logins, where the only thing known is a username someone typed.
 func (h *Handlers) auditAs(c *gin.Context, actor models.AuditActor, action string, status int, target AuditTarget, details map[string]any) {
-	if h.St == nil || h.St.Audit == nil {
-		return
-	}
-	if details == nil {
-		details = map[string]any{}
-	}
-	details["method"] = c.Request.Method
-	details["route"] = c.FullPath()
-
 	_ = h.St.Audit.Record(&models.Audit{
 		ID:            models.NewAuditID(),
 		ActorUserID:   actor.UserID,
@@ -145,51 +183,48 @@ func (h *Handlers) auditAs(c *gin.Context, actor models.AuditActor, action strin
 	})
 }
 
-// actorFrom captures who this request is, from the claims the auth middleware
-// loaded. A refusal before the gate has no actor, and the row says so with empty
-// columns — which is why the ledger's actor columns are text, not uuid.
-func actorFrom(c *gin.Context) models.AuditActor {
-	claims := ClaimsFrom(c)
-	if claims == nil {
-		return models.AuditActor{}
-	}
-	return models.AuditActor{
-		UserID:   claims.UserID,
-		Username: claims.Username,
-		Roles:    strings.Join(claims.Roles, ","),
-	}
-}
-
-// actorOf captures an account we loaded from the database (a login that arrived
-// at a real account, and failed there).
+// actorOf is the ledger's actor for an account that exists.
 func actorOf(u *models.User) models.AuditActor {
-	if u == nil {
-		return models.AuditActor{}
+	return models.AuditActor{
+		UserID:   u.ID,
+		Username: u.Username,
+		Roles:    strings.Join(roleNamesOf(u), ","),
+		Provider: u.Provider,
 	}
-	out := models.AuditActor{UserID: u.ID, Username: u.Username, Provider: u.Provider}
-	for _, role := range u.Roles {
-		out.Roles += role.Name + ","
-	}
-	out.Roles = strings.TrimSuffix(out.Roles, ",")
-	return out
 }
 
-// roleNames reads an account's roles from the rows, which is what a session is
-// issued with. An account with no role rows gets the viewer floor and nothing
-// more, so a missing row never widens access.
-func (h *Handlers) roleNames(u *models.User) []string {
+func roleNamesOf(u *models.User) []string {
 	if u == nil {
 		return nil
 	}
-	names, err := h.St.Users.RolesFor(u.ID)
-	if err != nil || len(names) == 0 {
-		return []string{models.RoleViewer}
+	names := make([]string, 0, len(u.Roles))
+	for _, role := range u.Roles {
+		names = append(names, role.Name)
 	}
 	return names
 }
 
-// userView is the account as the API shows it. PasswordHash is `json:"-"` on the
-// model, so there is no path from here to a hash.
+// roleNames reads an account's roles from the rows. The store preloads them on
+// every account fetch, so this is not a query; it is the loaded list.
+//
+// It matters where the roles come from: a token carries the roles its account had
+// when it was minted, and the ledger should record what the account is granted
+// now.
+func (h *Handlers) roleNames(u *models.User) []string {
+	names := roleNamesOf(u)
+	if len(names) > 0 {
+		return names
+	}
+	roles, err := h.St.Users.RolesFor(u.ID)
+	if err != nil {
+		return nil
+	}
+	return roles
+}
+
+// userView is an account as the API answers it. No password hash, ever; the
+// provider fields are present because "how does this account sign in" is a fact
+// the console has to show.
 type userView struct {
 	ID        string     `json:"id"`
 	Username  string     `json:"username"`
@@ -218,19 +253,21 @@ func (h *Handlers) view(u *models.User) userView {
 	}
 }
 
-// openSession records the issued refresh token as a session row, which is what
-// makes rotation and reuse detection observable.
+// openSession records the session row a refresh token belongs to.
 //
-// The row carries the SHA-256 of the token, never the token: a database read must
-// not be able to hand out a live session.
+// Without this row a refresh token has nothing to be rotated against, and reuse
+// detection has nothing to notice: the row is the difference between a refresh
+// token that can be revoked and a bearer token that cannot.
 func (h *Handlers) openSession(c *gin.Context, u *models.User, refreshToken string) (*models.Session, error) {
+	now := h.now().UTC()
 	session := &models.Session{
+		ID:        uuid.NewString(),
 		UserID:    u.ID,
 		TokenHash: models.HashRefreshToken(refreshToken),
-		ExpiresAt: h.now().UTC().Add(models.RefreshTokenTTL),
+		ExpiresAt: now.Add(models.RefreshTokenTTL),
 		SourceIP:  c.ClientIP(),
-		UserAgent: truncate(c.GetHeader("User-Agent"), 200),
-		CreatedAt: h.now().UTC(),
+		UserAgent: truncate(c.Request.UserAgent(), 200),
+		CreatedAt: now,
 	}
 	if err := h.St.Sessions.Create(session); err != nil {
 		return nil, err
@@ -238,15 +275,77 @@ func (h *Handlers) openSession(c *gin.Context, u *models.User, refreshToken stri
 	return session, nil
 }
 
-// truncate bounds a client-supplied string before it lands in a column.
-func truncate(s string, n int) string {
-	if len(s) <= n {
+// truncate bounds a client-supplied string at the column's width. A user agent
+// longer than the column is not a reason a login cannot be recorded.
+func truncate(s string, max int) string {
+	if len(s) <= max {
 		return s
 	}
-	return s[:n]
+	return s[:max]
 }
 
-// jsonError answers the one error shape the console and scripts/verify.sh read.
+// randomToken is 32 random bytes, base64url: the shape the SSO state value, the
+// nonce and the CSRF-ish secrets are built from. The PKCE verifier itself comes
+// from S2-04's helper, so its length rules live in one place.
+func randomToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// jsonError is the plan's error shape: {"error":"<human readable>"}.
 func jsonError(c *gin.Context, status int, msg string) {
 	c.JSON(status, gin.H{"error": msg})
+}
+
+// uniqueUsername turns an asserted identity into a username nobody holds.
+//
+// The IdP's words are the first candidates — its username claim, then the local
+// part of its email — and the provider's name is the suffix that makes two
+// providers asserting `jsmith` produce two accounts. A suffix that collides gets a
+// number, because "user exists" is not an answer to give a person standing at an
+// IdP's login page.
+func (h *Handlers) uniqueUsername(provider, username, email string) string {
+	candidate := strings.TrimSpace(username)
+	if candidate == "" {
+		candidate = strings.TrimSpace(strings.SplitN(email, "@", 2)[0])
+	}
+	candidate = sanitizeUsername(candidate)
+	if candidate == "" {
+		candidate = "user"
+	}
+	base := candidate
+	if !h.usernameFree(candidate) {
+		candidate = sanitizeUsername(candidate + "-" + provider)
+	}
+	for n := 2; !h.usernameFree(candidate); n++ {
+		candidate = sanitizeUsername(base + "-" + provider + "-" + itoa(n))
+	}
+	return candidate
+}
+
+func sanitizeUsername(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '-', r == '_':
+			out = append(out, r)
+		case r == ' ':
+			out = append(out, '-')
+		}
+	}
+	s = strings.Trim(string(out), "-._")
+	if len(s) > 40 {
+		s = s[:40]
+	}
+	return s
+}
+
+// usernameFree asks the only question the answer depends on.
+func (h *Handlers) usernameFree(candidate string) bool {
+	_, err := h.St.Users.GetByUsername(candidate)
+	return err != nil
 }

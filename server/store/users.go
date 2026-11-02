@@ -3,6 +3,7 @@ package store
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -198,6 +199,54 @@ func (s *UserStore) Delete(id string) error {
 			return err
 		}
 		return tx.Where("user_id = ?", id).Delete(&models.Session{}).Error
+	})
+}
+
+// ErrIdentityTaken names the one thing a link cannot do: attach an identity that
+// an account already carries.
+var ErrIdentityTaken = errors.New("users: that identity is already attached to an account")
+
+// LinkIdentity stamps a provider identity onto an existing account, and closes the
+// password door on the way.
+//
+// Two decisions are in those two lines:
+//
+//   - **One account per identity.** `(provider, provider_id)` is the identity's
+//     address, and two accounts carrying it would mean an assertion that logs in as
+//     whichever row the lookup happens to hit. There is no unique index on that
+//     pair (Step 1's migration predates the identity contract), so the check is
+//     done in the transaction that writes it.
+//   - **The password hash is cleared.** An account whose identity is asserted by an
+//     IdP must not also be openable with a password someone set before the IdP
+//     existed. S2-06 already refuses a password login at a provider account, so a
+//     hash left in place is a credential with no path — and a credential with no
+//     path is a file an attacker reads and an operator cannot revoke.
+func (s *UserStore) LinkIdentity(id, provider, providerID string) error {
+	if strings.TrimSpace(providerID) == "" || strings.TrimSpace(provider) == "" {
+		return errors.New("users: linking an identity needs a provider and a subject")
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var holder models.User
+		err := tx.Where("provider = ? AND provider_id = ? AND id <> ?", provider, providerID, id).First(&holder).Error
+		if err == nil {
+			return ErrIdentityTaken
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		res := tx.Model(&models.User{}).Where("id = ?", id).Updates(map[string]any{
+			"provider":      provider,
+			"provider_id":   providerID,
+			"password_hash": "",
+			"updated_at":    time.Now().UTC(),
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
 	})
 }
 
