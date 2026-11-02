@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 78 | 34 |
+| 0 | 0 | 1 | 77 | 35 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -38,7 +38,6 @@ _empty_
 | --- | --- | --- |
 | [`S2-06`](kanban/cards/S2-06.md) | Auth routes: status, login, refresh, logout, profile, password (registration 403) | S2-01, S2-03 |
 | [`S2-07`](kanban/cards/S2-07.md) | SSO routes: authorize, callback, exchange (+ state row carrying nonce + verifier) | S2-04, S2-05 |
-| [`S2-08`](kanban/cards/S2-08.md) | api/middleware.go: auth, role gates, internal token, audit on denial | S2-01, S1-12 |
 | [`S2-09`](kanban/cards/S2-09.md) | Users + roles admin routes | S2-08 |
 | [`S2-11`](kanban/cards/S2-11.md) | Step 2 suites: sso discovery/jwks/oauth/contract, api/oidc, ws/hub, auth | S2-01, S2-04, S2-05, S2-06, S2-07, S2-10 |
 
@@ -207,6 +206,7 @@ _empty_
 | [`S2-03`](kanban/cards/S2-03.md) | store/bootstrap.go: seed roles + break-glass admin, recorded in settings | S1-11, S1-12, S2-02 |
 | [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
 | [`S2-05`](kanban/cards/S2-05.md) | sso/testidp: in-repo test IdP | S2-04 |
+| [`S2-08`](kanban/cards/S2-08.md) | api/middleware.go: auth, role gates, internal token, audit on denial | S2-01, S1-12 |
 | [`S2-10`](kanban/cards/S2-10.md) | ws/hub.go: local hub, token auth, origin guard, the seven message types | S2-01 |
 
 ### Step 6 — Events, clips, snapshots, webhooks

@@ -90,13 +90,24 @@ const (
 	AuditAuthLogout         = "auth.logout"
 	AuditAuthPasswordChange = "auth.password_change"
 	AuditAuthRegister       = "auth.register"
+	AuditAuthProfile        = "auth.profile"
+
+	// The SSO login ledger. A refusal at the callback names its reason in
+	// `details`, and the reason vocabulary lives in sso/contract.go, so the
+	// action says which door was refused and the details say why.
+	AuditSSOLogin        = "sso.login"
+	AuditSSOLoginRefused = "sso.login_refused"
 	// Stamping an SSO identity onto an existing account is reachable only when
 	// the operator chose link_policy=link for that provider. It gives an
 	// existing account's access to a new door, so it is a row.
-	AuditSSOLink        = "sso.link"
-	AuditIdentityLink   = "identity.link"
-	AuditIdentityMerge  = "identity.merge"
-	AuditIdentityRefuse = "identity.refuse"
+	AuditSSOLink      = "sso.link"
+	AuditIdentityRead = "identity.read"
+	// Approving a pending identity creates an account at the viewer floor, which
+	// is an act with consequences, not a queue being cleared.
+	AuditIdentityApprove = "identity.approve"
+	AuditIdentityLink    = "identity.link"
+	AuditIdentityMerge   = "identity.merge"
+	AuditIdentityRefuse  = "identity.refuse"
 
 	AuditCameraCreate = "camera.create"
 	AuditCameraUpdate = "camera.update"
@@ -129,11 +140,18 @@ const (
 	AuditUserCreate     = "user.create"
 	AuditUserUpdate     = "user.update"
 	AuditUserDelete     = "user.delete"
+	AuditUserRead       = "user.read"
 	AuditUserRoleChange = "user.role_change"
 
 	AuditRoleCreate = "role.create"
 	AuditRoleUpdate = "role.update"
 	AuditRoleDelete = "role.delete"
+	AuditRoleRead   = "role.read"
+
+	// AuditRouteDenied is the verb a gate uses for a route that has not declared
+	// one. A new route group that never registered its ledger verb shows up here
+	// instead of writing refusals under a name nobody searches for.
+	AuditRouteDenied = "route.denied"
 
 	AuditSettingUpdate = "setting.update"
 )
