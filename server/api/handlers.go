@@ -151,6 +151,11 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// rules, and the one path that writes go2rtc's config.
 	h.registerCameraRoutes(r)
 
+	// The timeline manifest (S4-05): the recorded segments in a window. This is
+	// also the surface `scripts/verify.sh` gate 6 reads to see that recording is
+	// actually happening, so its shape is an acceptance gate, not a convenience.
+	h.registerSegmentRoutes(r)
+
 	// The admin surface: accounts, roles, the pending-identity queue and the
 	// ledger. The gate is the role check, and the denial is audited by the same
 	// middleware that answers it.
