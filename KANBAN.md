@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 67 | 45 |
+| 0 | 0 | 2 | 67 | 45 |
 
-Total cards: **113**. In Progress limit: **2**.
+Total cards: **114**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -28,6 +28,12 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S9-06`](kanban/cards/S9-06.md) | GPU overlay: docker-compose.gpu.yml + the CPU-baseline story in docs | S9-04 |
+
+### Step ? — 
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
 
 ## Backlog
 
