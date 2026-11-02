@@ -7,19 +7,14 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 1 | 0 | 1 | 83 | 27 |
+| 0 | 0 | 1 | 83 | 28 |
 
 Total cards: **112**. In Progress limit: **2**.
 
 
 ## In Progress
 
-
-### Step 2 — Auth: JWT, break-glass admin, OIDC, WebSocket
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
+_empty_
 
 ## Review — built, not yet verified
 
@@ -216,6 +211,7 @@ _empty_
 | [`S2-01`](kanban/cards/S2-01.md) | auth/jwt.go: HS256 access + refresh with rotation and reuse detection | S1-06, S1-12 |
 | [`S2-02`](kanban/cards/S2-02.md) | auth/argon2.go: password hash + verify | — |
 | [`S2-03`](kanban/cards/S2-03.md) | store/bootstrap.go: seed roles + break-glass admin, recorded in settings | S1-11, S1-12, S2-02 |
+| [`S2-04`](kanban/cards/S2-04.md) | sso/ port: discovery, jwks, oauth, contract (SAML removed, kind fixed to oidc) | S1-07, S1-12 |
 | [`S2-10`](kanban/cards/S2-10.md) | ws/hub.go: local hub, token auth, origin guard, the seven message types | S2-01 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
