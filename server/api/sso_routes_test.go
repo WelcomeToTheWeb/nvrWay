@@ -143,15 +143,29 @@ func (f *ssoFixture) walk(t *testing.T) (string, []int) {
 }
 
 // handoffParts parses the fragment the console reads.
-func handoffParts(t *testing.T, handoff string) (base string, fragment url.Values) {
+//
+// The parsing is deliberate: `url.ParseQuery` refuses a query containing a
+// semicolon, and an operator's own IdP message — the text we hand back verbatim in
+// `error_description` — is full of them. A console reads this with
+// `URLSearchParams`, so the suite reads it the same way: split on the separators
+// that are ours, and unescape the values.
+func handoffParts(t *testing.T, handoff string) (base string, fragment map[string]string) {
 	t.Helper()
 	parsed, err := url.Parse(handoff)
 	if err != nil {
 		t.Fatalf("the handoff is not a URL: %v", err)
 	}
-	fragment, err = url.ParseQuery(parsed.Fragment)
-	if err != nil {
-		t.Fatalf("the handoff fragment is not a query: %v", err)
+	fragment = map[string]string{}
+	for _, pair := range strings.Split(parsed.Fragment, "&") {
+		if pair == "" {
+			continue
+		}
+		key, value, _ := strings.Cut(pair, "=")
+		decoded, err := url.QueryUnescape(value)
+		if err != nil {
+			t.Fatalf("the fragment value %q is not escapable: %v", value, err)
+		}
+		fragment[key] = decoded
 	}
 	return parsed.Path, fragment
 }
@@ -179,7 +193,7 @@ func TestSSOHandoffWalksAuthorizeCallbackExchange(t *testing.T) {
 	if !strings.HasPrefix(handoff, f.server.URL+"/auth/callback#") {
 		t.Fatalf("the handoff is %q, want it to start %s/auth/callback#", handoff, f.server.URL)
 	}
-	access, refresh := fragment.Get("access_token"), fragment.Get("refresh_token")
+	access, refresh := fragment["access_token"], fragment["refresh_token"]
 	if access == "" || refresh == "" {
 		t.Fatalf("the fragment carries no token pair: %q", handoff)
 	}
@@ -333,7 +347,7 @@ func TestSSOExchangeAnswersProfileAndRoles(t *testing.T) {
 	f := newSSOFixture(t, ssoClaims(), nil)
 	handoff, _ := f.walk(t)
 	_, fragment := handoffParts(t, handoff)
-	access := fragment.Get("access_token")
+	access := fragment["access_token"]
 
 	router := routerFor(t, f.h)
 	status, body, _ := do(t, router, request{method: http.MethodPost, path: "/api/auth/sso/exchange", bearer: access})
@@ -411,7 +425,7 @@ func TestSSOContractRefusalArrivesAsItsOwnReason(t *testing.T) {
 	if base != "/auth/callback" {
 		t.Fatalf("the refusal landed on %q, want the console's failure state", base)
 	}
-	if got := fragment.Get("error"); got != sso.ReasonDomainNotAllowed {
+	if got := fragment["error"]; got != sso.ReasonDomainNotAllowed {
 		t.Fatalf("the refusal is %q, want %s", got, sso.ReasonDomainNotAllowed)
 	}
 	if strings.Contains(handoff, "access_token=") {

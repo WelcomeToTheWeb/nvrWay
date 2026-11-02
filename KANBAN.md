@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 74 | 38 |
+| 0 | 0 | 1 | 73 | 39 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -31,12 +31,6 @@ _empty_
 
 ## Backlog
 
-
-### Step 2 — Auth: JWT, break-glass admin, OIDC, WebSocket
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S2-11`](kanban/cards/S2-11.md) | Step 2 suites: sso discovery/jwks/oauth/contract, api/oidc, ws/hub, auth | S2-01, S2-04, S2-05, S2-06, S2-07, S2-10 |
 
 ### Step 3 — Cameras + go2rtc sync + live plumbing
 
@@ -208,6 +202,7 @@ _empty_
 | [`S2-08`](kanban/cards/S2-08.md) | api/middleware.go: auth, role gates, internal token, audit on denial | S2-01, S1-12 |
 | [`S2-09`](kanban/cards/S2-09.md) | Users + roles admin routes | S2-08 |
 | [`S2-10`](kanban/cards/S2-10.md) | ws/hub.go: local hub, token auth, origin guard, the seven message types | S2-01 |
+| [`S2-11`](kanban/cards/S2-11.md) | Step 2 suites: sso discovery/jwks/oauth/contract, api/oidc, ws/hub, auth | S2-01, S2-04, S2-05, S2-06, S2-07, S2-10 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

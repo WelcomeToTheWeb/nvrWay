@@ -247,10 +247,21 @@ func denyRoute(c *gin.Context, audit *store.AuditStore, status int, reason strin
 // has not declared its ledger verb is visible as one, rather than silently
 // writing rows under a verb nobody searches for.
 var deniedActions = map[string]string{
-	"GET /api/auth/profile":            models.AuditAuthProfile,
-	"PUT /api/auth/password":           models.AuditAuthPasswordChange,
-	"POST /api/auth/logout":            models.AuditAuthLogout,
-	"POST /api/auth/register":          models.AuditAuthRegister,
+	"GET /api/auth/profile":   models.AuditAuthProfile,
+	"PUT /api/auth/password":  models.AuditAuthPasswordChange,
+	"POST /api/auth/logout":   models.AuditAuthLogout,
+	"POST /api/auth/register": models.AuditAuthRegister,
+	// The media surface, registered ahead of the routes (S3/S6): the verbs below
+	// name the acts Steps 3–6 will mount, so a refusal on `/api/v1/cameras` is
+	// recorded under `camera.create` from the day the route arrives, and the
+	// ledger question an operator asks ("who tried to add a camera") is answerable
+	// without knowing which card wrote the route.
+	"POST /api/v1/cameras":             models.AuditCameraCreate,
+	"PUT /api/v1/cameras/:id":          models.AuditCameraUpdate,
+	"DELETE /api/v1/cameras/:id":       models.AuditCameraDelete,
+	"POST /api/v1/cameras/:id/probe":   models.AuditCameraProbe,
+	"PUT /api/v1/cameras/:id/zones":    models.AuditCameraZones,
+	"DELETE /api/v1/events/:id":        models.AuditEventDelete,
 	"GET /api/users":                   models.AuditUserRead,
 	"POST /api/users":                  models.AuditUserCreate,
 	"GET /api/users/:id":               models.AuditUserRead,

@@ -652,7 +652,7 @@ func TestUsersProviderAccountCannotReceiveAPassword(t *testing.T) {
 	}, nil)
 	handoff, _ := fixture.walk(t)
 	_, fragment := handoffParts(t, handoff)
-	access := fragment.Get("access_token")
+	access := fragment["access_token"]
 
 	status, body, _ := do(t, routerFor(t, fixture.h), request{
 		method: http.MethodPut, path: "/api/auth/password", bearer: access,
