@@ -126,16 +126,24 @@ func (h *fakeHub) cameraStatuses() []map[string]any {
 	return append([]map[string]any{}, h.camera...)
 }
 
-// lastCameraStatus is the newest announcement for one camera: the tile's truth.
-func (h *fakeHub) lastCameraStatus(cameraID string) (map[string]any, bool) {
+// cameraStatusLog is every `camera.status` announcement for one camera, oldest
+// first — append-only, so an index found in it stays valid as the log grows.
+//
+// Suites that assert a *transition* read the log, not its newest entry. With an
+// injectable sleep the offline state lasts microseconds of wall-clock time (the
+// restart backoff is a fake-clock advance, not a real wait), so "the newest
+// announcement is offline" is a race with the suite's poll rather than a property
+// of the recorder. "An offline announcement followed the recording one" is.
+func (h *fakeHub) cameraStatusLog(cameraID string) []map[string]any {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for i := len(h.camera) - 1; i >= 0; i-- {
-		if h.camera[i]["camera_id"] == cameraID {
-			return h.camera[i], true
+	out := make([]map[string]any, 0, len(h.camera))
+	for _, s := range h.camera {
+		if s["camera_id"] == cameraID {
+			out = append(out, s)
 		}
 	}
-	return nil, false
+	return out
 }
 
 func asMap(payload any) map[string]any {
@@ -220,6 +228,10 @@ type spawnLog struct {
 	// suites use it to write what ffmpeg writes — the files and the CSV lines —
 	// without an encoder.
 	afterStart func(n int, argv []string)
+	// exitWith is the suite playing a crash: the child exits with this error, this
+	// long after it started. The crash suite needs a process that dies, and needs
+	// to say when.
+	exitWith func(n int) (error, time.Duration)
 }
 
 func (l *spawnLog) factory() processFactory {
@@ -237,10 +249,20 @@ func (l *spawnLog) factory() processFactory {
 		p := newFakeProcess()
 		l.mu.Lock()
 		l.procs = append(l.procs, p)
-		fn := l.afterStart
+		after := l.afterStart
+		exitWith := l.exitWith
 		l.mu.Unlock()
-		if fn != nil {
-			go fn(n, argv)
+		if after != nil {
+			go after(n, argv)
+		}
+		if exitWith != nil {
+			err, d := exitWith(n)
+			go func() {
+				if d > 0 {
+					time.Sleep(d)
+				}
+				p.exit(err)
+			}()
 		}
 		return p, nil
 	}
@@ -499,4 +521,34 @@ func flagValue(argv []string, flag string) string {
 		}
 	}
 	return ""
+}
+
+// sleepRecorder is a clock whose sleeps the suite can read: the restart backoff is
+// a sequence of waits, and the only honest way to assert a sequence is to record
+// the waits.
+type sleepRecorder struct {
+	mu    sync.Mutex
+	slept []time.Duration
+	clock *fakeClock
+}
+
+func newSleepRecorder(clock *fakeClock) *sleepRecorder {
+	return &sleepRecorder{clock: clock}
+}
+
+// SetOn wires it to a recorder: the clock advances as the recorder asks, instantly,
+// and every duration is recorded.
+func (s *sleepRecorder) SetOn(rec *Recorder) {
+	rec.SetClock(s.clock.Now, func(d time.Duration) {
+		s.mu.Lock()
+		s.slept = append(s.slept, d)
+		s.mu.Unlock()
+		s.clock.Advance(d)
+	})
+}
+
+func (s *sleepRecorder) durations() []time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]time.Duration{}, s.slept...)
 }
