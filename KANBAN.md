@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 73 | 39 |
+| 0 | 0 | 1 | 72 | 40 |
 
 Total cards: **113**. In Progress limit: **2**.
 
@@ -36,7 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S3-01`](kanban/cards/S3-01.md) | go2rtc/client.go: streams, put/delete, ApplyConfig, Frame, WebRTCOffer | S1-01 |
 | [`S3-02`](kanban/cards/S3-02.md) | go2rtc/config.go: render go2rtc.yaml from camera rows (golden file) | S1-03, S3-01 |
 | [`S3-03`](kanban/cards/S3-03.md) | Camera API: CRUD, probe, snapshot, slug rules | S1-10, S3-01, S3-02 |
 | [`S3-04`](kanban/cards/S3-04.md) | Zone writes: PUT /api/v1/cameras/:id/zones + audit | S1-03, S3-03 |
@@ -203,6 +202,12 @@ _empty_
 | [`S2-09`](kanban/cards/S2-09.md) | Users + roles admin routes | S2-08 |
 | [`S2-10`](kanban/cards/S2-10.md) | ws/hub.go: local hub, token auth, origin guard, the seven message types | S2-01 |
 | [`S2-11`](kanban/cards/S2-11.md) | Step 2 suites: sso discovery/jwks/oauth/contract, api/oidc, ws/hub, auth | S2-01, S2-04, S2-05, S2-06, S2-07, S2-10 |
+
+### Step 3 — Cameras + go2rtc sync + live plumbing
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S3-01`](kanban/cards/S3-01.md) | go2rtc/client.go: streams, put/delete, ApplyConfig, Frame, WebRTCOffer | S1-01 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 
