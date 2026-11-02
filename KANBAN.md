@@ -23,17 +23,17 @@ _empty_
 ## Blocked
 
 
+### Step 3 — Cameras + go2rtc sync + live plumbing
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
+
 ### Step 9 — Containers, compose, scripts, CI
 
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S9-06`](kanban/cards/S9-06.md) | GPU overlay: docker-compose.gpu.yml + the CPU-baseline story in docs | S9-04 |
-
-### Step ? — 
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S3-08`](kanban/cards/S3-08.md) | The GPU path on this box: an unprivileged LXC guest, and what the host must expose | — |
 
 ## Backlog
 
