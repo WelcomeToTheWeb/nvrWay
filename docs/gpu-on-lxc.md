@@ -95,6 +95,40 @@ ls /sys/module/nvidia_uvm || echo "not loaded"
 modprobe nvidia-uvm                                              # on the host
 ```
 
+**When `modprobe nvidia-uvm` does not fix it** (this box's state on 2026-11-02:
+node present, `lsmod` shows `nvidia`, `nvidia_modeset`, `nvidia_drm` at 615.78.08
+and no `nvidia_uvm`), run these on the host, in order — each one names a
+different reason:
+
+```sh
+# 1. Is the module built for THIS kernel? The driver here is a 615.78.08 runfile
+#    install on a Proxmox kernel (7.0.14-26-pve): a runfile only builds modules
+#    for the kernel whose headers it found.
+uname -r
+find /lib/modules/$(uname -r) -name 'nvidia*uv*'
+ls /lib/modules/$(uname -r)/updates/dkms /lib/modules/$(uname -r)/extra 2>/dev/null
+
+# 2. If it is on disk but modprobe cannot see it: the dependency map is stale.
+depmod -a && modprobe nvidia-uvm && echo loaded
+
+# 3. If it is on disk and modprobe loads it and it disappears again: the module
+#    refuses to init. The kernel log says why (version mismatch against the
+#    loaded nvidia.ko is the usual answer, and open/proprietary mixing is the
+#    other — /proc/driver/nvidia/version says "Open Kernel Module", so the uvm
+#    module must come from open-gpu-kernel-modules, not from the proprietary
+#    installer's nvidia-uvm.ko).
+modprobe nvidia-uvm; dmesg | tail -10
+
+# 4. If a blacklist names it: /etc/modprobe.d/{nvidia*,*blacklist*}
+grep -rn uvm /etc/modprobe.d/ 2>/dev/null
+```
+
+Do not expect the container to load it: `nvidia-modprobe` and `libcuda` load
+modules via the kernel's `request_module`, and an unprivileged LXC guest has no
+`CAP_SYS_MODULE` (here, `modprobe nvidia-uvm` →
+`Module nvidia-uvm not found in directory /lib/modules/7.0.14-26-pve`, because the
+container's module tree is its own, not the host's).
+
 `scripts/gpu-probe.sh` opens each node and prints the errno for exactly this
 reason. A box where `nvidia-smi`, CDI and `--gpus all` all pass and CUDA fails is
 usually here.
