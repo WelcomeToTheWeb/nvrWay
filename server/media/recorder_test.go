@@ -1,10 +1,12 @@
 package media
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"nvr/server/config"
 	"nvr/server/models"
 )
 
@@ -271,3 +273,165 @@ func containsArgv(all [][]string, needle string) bool {
 	}
 	return false
 }
+
+// Card S4-02 — the ingest command and the generation counter.
+//
+// The plan names this command character for character, and the card's criteria are
+// about the names it produces: `<slug>-<generation>-<n>.mp4`, a generation that
+// survives a restart, and a `-segment_start_number` that continues the numbering.
+
+// TestRecorderIngestCommandIsThePlansLine compares the command to the plan's,
+// token by token, in the plan's order.
+func TestRecorderIngestCommandIsThePlansLine(t *testing.T) {
+	rec, _, spawns, _ := newTestRecorder(t)
+	cfg := rec.Cfg
+	addCamera(t, rec.St, "porch", models.RecordModeContinuous)
+	startRecorder(t, rec)
+
+	waitFor(t, 3*time.Second, "the spawn", func() bool { return spawns.spawns() == 1 })
+	argv := spawns.lastArgv()
+
+	want := []string{
+		"ffmpeg",
+		"-hide_banner", "-loglevel", "error",
+		"-rtsp_transport", "tcp",
+		"-i", cfg.Go2rtcRTSPURL + "/porch",
+		"-c", "copy",
+		"-f", "segment",
+		"-segment_type", "mp4",
+		"-segment_time", "1",
+		"-reset_timestamps", "1",
+		"-segment_start_number", "0",
+		"-segment_list", cfg.SegmentsDir + "/porch.csv",
+		"-segment_list_type", "csv",
+		"-segment_list_entry_prefix", "porch-1-",
+		cfg.SegmentsDir + "/porch-1-%d.mp4",
+	}
+	if got := joinTokens(argv); got != joinTokens(want) {
+		t.Fatalf("the ingest command is not the plan's:\n got  %s\n want %s", got, joinTokens(want))
+	}
+}
+
+// TestRecorderSegmentLengthComesFromConfig: SEGMENT_SECONDS is the knob, and the
+// command reads it, so an operator's segment length is one env var and not a
+// rebuild.
+func TestRecorderSegmentLengthComesFromConfig(t *testing.T) {
+	st := newTestStore(t)
+	t.Setenv("SEGMENT_SECONDS", "7")
+	seven := config.Load()
+
+	rec, _, _, _ := newRecorderOn(t, st, seven)
+	cam := addCamera(t, st, "porch", models.RecordModeContinuous)
+	argv := rec.FfmpegArgs(cam, 1, 0)
+	if got := flagValue(argv, "-segment_time"); got != "7" {
+		t.Fatalf("SEGMENT_SECONDS=7 produced -segment_time %q", got)
+	}
+	if got := flagValue(argv, "-segment_start_number"); got != "0" {
+		t.Fatalf("start number is %q, want 0 for a camera that has written nothing", got)
+	}
+}
+
+// TestRecorderGenerationIncrementsAndSurvivesARestart is the counter's whole
+// point: ffmpeg restarts its own segment numbering at 0, so the only thing
+// separating a restarted supervisor's files from the ones it is replacing is this
+// counter, and it lives in the settings table, not in memory.
+func TestRecorderGenerationIncrementsAndSurvivesARestart(t *testing.T) {
+	st := newTestStore(t)
+	cfg := newTestConfig(t)
+
+	first, _, firstSpawns, _ := newRecorderOn(t, st, cfg)
+	cam := addCamera(t, st, "porch", models.RecordModeContinuous)
+	startRecorder(t, first)
+	waitFor(t, 3*time.Second, "the first recorder to spawn", func() bool { return firstSpawns.spawns() == 1 })
+	if got := generation(t, st, cam.ID); got != 1 {
+		t.Fatalf("generation after the first spawn is %d, want 1", got)
+	}
+	first.Close()
+
+	// A restart: a new recorder over the same rows.
+	second, _, secondSpawns, _ := newRecorderOn(t, st, cfg)
+	startRecorder(t, second)
+	waitFor(t, 3*time.Second, "the restarted recorder to spawn", func() bool { return secondSpawns.spawns() == 1 })
+
+	if got := generation(t, st, cam.ID); got != 2 {
+		t.Fatalf("generation after a restart is %d, want 2 (the counter is settings-backed, not process memory)", got)
+	}
+	argv := secondSpawns.lastArgv()
+	if got := flagValue(argv, "-segment_list_entry_prefix"); got != "porch-2-" {
+		t.Fatalf("the restarted recorder writes the first generation's files: prefix %q, want %q", got, "porch-2-")
+	}
+	if got := flagValue(argv, "-segment_list"); got != cfg.SegmentsDir+"/porch.csv" {
+		t.Fatalf("segment list is %q", got)
+	}
+}
+
+// TestRecorderStartNumberContinuesAfterARestart: `-segment_start_number` is the
+// plan's "continue the numbering after a restart". The only place the last number
+// lives between runs is the manifest, so the counter reads it from there.
+func TestRecorderStartNumberContinuesAfterARestart(t *testing.T) {
+	st := newTestStore(t)
+	cfg := newTestConfig(t)
+	cam := addCamera(t, st, "porch", models.RecordModeContinuous)
+
+	// Generation 1 wrote segments 0..5.
+	written := []string{"porch-1-0.mp4", "porch-1-1.mp4", "porch-1-2.mp4", "porch-1-4.mp4", "porch-1-5.mp4"}
+	at := time.Now().UTC().Add(-time.Hour)
+	for _, name := range written {
+		at = at.Add(5 * time.Second)
+		seg := &models.Segment{
+			CameraID:   cam.ID,
+			Generation: 1,
+			Path:       cfg.SegmentsDir + "/" + name,
+			StartTS:    at,
+			EndTS:      at.Add(time.Duration(cfg.SegmentSeconds) * time.Second),
+			Seconds:    float64(cfg.SegmentSeconds),
+			Bytes:      4096,
+			Kind:       models.SegmentKindContinuous,
+		}
+		if err := st.Segments.Create(seg); err != nil {
+			t.Fatalf("seeding segment row %s: %v", name, err)
+		}
+	}
+	// The counter says this camera's last generation was 1.
+	if err := st.Settings.Set(GenerationKey(cam.ID), "1"); err != nil {
+		t.Fatalf("seeding the generation: %v", err)
+	}
+
+	rec, _, spawns, _ := newRecorderOn(t, st, cfg)
+	startRecorder(t, rec)
+	waitFor(t, 3*time.Second, "the spawn", func() bool { return spawns.spawns() == 1 })
+
+	argv := spawns.lastArgv()
+	if got := flagValue(argv, "-segment_start_number"); got != "6" {
+		t.Fatalf("-segment_start_number is %q, want 6 (the last number written was 5; ffmpeg would restart at 0 and overwrite)", got)
+	}
+	if got := flagValue(argv, "-segment_list_entry_prefix"); got != "porch-2-" {
+		t.Fatalf("prefix is %q, want porch-2-", got)
+	}
+	if got := flagValue(argv, "-segment_list"); !strings.HasSuffix(got, "porch.csv") {
+		t.Fatalf("segment list is %q", got)
+	}
+}
+
+// TestRecorderGenerationIsPersistedBeforeTheChildStarts pins the order. A spawn
+// that dies before ffmpeg writes anything must still move the counter: a next
+// spawn reading the old generation would restart ffmpeg's numbering at 0 and write
+// over the files the previous generation already wrote.
+func TestRecorderGenerationIsPersistedBeforeTheChildStarts(t *testing.T) {
+	st := newTestStore(t)
+	cfg := newTestConfig(t)
+	cam := addCamera(t, st, "porch", models.RecordModeContinuous)
+
+	rec, _, spawns, _ := newRecorderOn(t, st, cfg)
+	// Every spawn fails: nothing is recorded, and the counter still advances.
+	spawns.fail = func(n int) error { return errFakeStart }
+	startRecorder(t, rec)
+
+	waitFor(t, 3*time.Second, "two failed spawn attempts", func() bool { return spawns.spawns() >= 2 })
+	if got := generation(t, st, cam.ID); got < 2 {
+		t.Fatalf("generation is %d after %d failed spawns, want >= 2 (the counter is advanced before the child starts)",
+			got, spawns.spawns())
+	}
+}
+
+var errFakeStart = errors.New("the fake ffmpeg refused to start")

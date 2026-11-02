@@ -286,8 +286,15 @@ func (l *spawnLog) liveProcs() []*fakeProcess {
 // moves, and a fake child process.
 func newTestRecorder(t *testing.T) (*Recorder, *fakeHub, *spawnLog, *fakeClock) {
 	t.Helper()
-	st := newTestStore(t)
-	cfg := newTestConfig(t)
+	return newRecorderOn(t, newTestStore(t), newTestConfig(t))
+}
+
+// newRecorderOn builds the same fast recorder on a store and config the caller
+// already has. Suites that measure a restart need it: "the generation survives a
+// restart" is a second recorder built on the same rows, which is what a process
+// restart is.
+func newRecorderOn(t *testing.T, st *store.Store, cfg *config.Config) (*Recorder, *fakeHub, *spawnLog, *fakeClock) {
+	t.Helper()
 	hub := &fakeHub{}
 	spawns := &spawnLog{}
 
@@ -428,3 +435,14 @@ func segmentsFor(t *testing.T, st *store.Store, cameraID string) []models.Segmen
 
 // tokenOf is a small helper for the string joining used in assertions.
 func joinTokens(argv []string) string { return strings.Join(argv, " ") }
+
+// flagValue is the argument a flag takes, for assertions that name one token of
+// the command instead of comparing a whole string a reader has to scan.
+func flagValue(argv []string, flag string) string {
+	for i, arg := range argv {
+		if arg == flag && i+1 < len(argv) {
+			return argv[i+1]
+		}
+	}
+	return ""
+}
