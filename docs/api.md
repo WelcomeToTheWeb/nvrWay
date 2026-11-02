@@ -17,12 +17,29 @@ List the sections below once they have content.
 
 ## Authentication
 
-Bearer `access_token` on every `/api/v1/*` route; `POST /api/auth/login`,
-`POST /api/auth/refresh` (rotation + reuse detection, S2-01),
-`POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/password`.
-`POST /api/auth/register` is `403` in v1 — state that as a decision, not an
-omission (S2-06). Public: `GET /api/auth/status` (what the login page renders
-its buttons from).
+Bearer `Authorization: Bearer <access_token>` on every `/api/v1/*` route.
+The **header is the only REST credential**: `?token=` is accepted on `/ws` and
+nowhere else (S2-08). `POST /api/auth/register` is `403` in v1 — a decision, not
+an omission (S2-06).
+
+| Route | Answer |
+|---|---|
+| `GET /api/auth/status` | `{"local_login":bool,"oidc":[{"provider","name","issuer"}],"registration":false}`. Both buttons come from **rows** — an account that can authenticate with a password, and a provider row that is enabled — not from the environment (S2-06). |
+| `POST /api/auth/login` | body `{"username","password"}`. `200` `{"access_token","refresh_token","token_type":"bearer","expires_in":1800,"user":{…}}`. Refusals: `401 {"error":"invalid credentials"}` (identical for an unknown account and a wrong password), `403 {"error":"this account signs in through its provider"}`. Behind the rate limiter. |
+| `POST /api/auth/refresh` | body `{"refresh_token"}`. Rotation: the presented row closes, the replacement names it in `rotated_from`. `200` `{"access_token","refresh_token","token_type","expires_in"}`. A spent token is a replay: `401 {"error":"refresh token was already used","live_sessions_dropped":N}` and every live session of that account is closed. |
+| `POST /api/auth/logout` | bearer token required. Body `{"refresh_token"}` closes that session; an empty body closes **every** live session of the account. `200 {"status":"logged out","live_sessions_dropped":N}`. The access token is denied by its id for as long as it would have lived. |
+| `GET /api/auth/profile` | the account the token names: `{"id","username","name","email","provider","status","roles":[…],"created_at","updated_at","last_login"}`. No password hash. `401` when the account no longer exists, `403` when it is pending. |
+| `PUT /api/auth/password` | body `{"current_password","new_password"}`. `401` on a wrong current password, `422` under 12 characters, `403` for a provider account (its password lives at the IdP). On success every session of the account is closed and every access token issued before the call stops verifying. |
+| `POST /api/auth/register` | `403 {"error":"registration is admin-only"}`, and the attempt is a ledger row. |
+
+The plan's `GET /api/auth/me` and `POST /api/auth/password` are this pair of
+routes. `/api/auth/profile` and `PUT /api/auth/password` are the names the router
+mounts, the console reads and this table keeps: a route with two names is two
+routes an operator has to guess between.
+
+Every refusal above is a ledger row: `auth.login` (ok), `auth.login_failed` (with
+the reason the client does not get), `auth.refresh`, `auth.logout`,
+`auth.password_change`, `auth.register`.
 
 ## SSO (OIDC)
 
@@ -38,6 +55,11 @@ The matrix every route section below states per route: `viewer` read,
 `operator` CRUD, `admin` everything; a `viewer` write answers
 `403 {"error":"insufficient role"}` (S2-08, S3-06). Include the audit row a
 denial writes.
+
+The authority for a permission check is the **role rows**, read live: the token's
+role names decide which named gate the request runs, and the gate reads what that
+role is granted now. A token whose role an admin has just taken away stops writing
+on its next request (S2-08).
 
 ## Users, roles and identities (admin)
 

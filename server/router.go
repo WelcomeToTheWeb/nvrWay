@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"nvr/server/api"
 	"nvr/server/config"
 	"nvr/server/models"
 	"nvr/server/store"
@@ -13,18 +14,15 @@ import (
 
 // newRouter builds the HTTP surface.
 //
-// Step 1 mounts only what exists: `/health` for the container healthcheck, and
-// a readiness line that answers the one question a deployment can ask before
-// auth, media and storage exist — is the database reachable and migrated.
+// `/health` is the container healthcheck's line and `/readyz` is the deploy
+// script's: both exist from Step 1 and neither is part of the API's auth surface.
+// Everything else is mounted by the handler set (`api.Handlers`), which is where
+// each later step adds its routes, so the auth middleware, the rate limiter and
+// the audit ledger apply to all of them. The route table is `docs/api.md`.
 //
 // `ctx` is the server lifecycle context: Steps 2–7 start their background
 // workers (recorder, uploader, sweeper, clip builder) from it, and it is
 // cancelled at shutdown, so no worker outlives the process that owns it.
-//
-// Step 2 replaces this with `api.NewHandlers(ctx, st, jwtAuth, hub, cfg)`,
-// which mounts the auth routes, the role middleware and the rate limiter, and
-// Steps 3–7 add the camera, event, segment, storage and internal worker routes
-// to that handler set. The route table is `docs/api.md`.
 func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -53,6 +51,11 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.En
 			dbOK = false
 		}
 		cameras, detecting, _ := st.Cameras.Count()
+		// The password way in is a fact about the accounts, not about the
+		// environment: the env says what the last boot was asked to seed, the rows
+		// say what the installation has. Reporting only the env is how "the console
+		// shows a password form and no password works" becomes a mystery.
+		localAccounts, _ := st.Users.CountLocalLogin()
 		status := http.StatusOK
 		body := gin.H{
 			"status":            "ok",
@@ -68,7 +71,8 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.En
 				"events": cfg.EventRetentionDays,
 				"audit":  models.AuditRetentionDays,
 			},
-			"local_admin": cfg.LocalAdminEnabled(),
+			"local_admin":            localAccounts > 0,
+			"local_admin_seed_asked": cfg.LocalAdminEnabled(),
 		}
 		if !dbOK {
 			status = http.StatusServiceUnavailable
@@ -76,6 +80,15 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) *gin.En
 		}
 		c.JSON(status, body)
 	})
+
+	// Step 2: the handler set. This is the mount point every later step adds its
+	// routes to — cameras, events, clips, storage and the internal worker API all
+	// arrive inside `api.Handlers`, so the middleware, the rate limiter and the
+	// ledger are the same for all of them.
+	//
+	// The hub is nil until the live feed is wired to the recorder (S6-04): the
+	// `/ws` route is mounted by the handler set when a hub is handed to it.
+	api.NewHandlers(ctx, st, nil, nil, cfg).Register(router)
 
 	return router
 }

@@ -33,10 +33,10 @@ import (
 // Context keys. Prefixed so a middleware cannot collide with a route parameter
 // named "id", which is what the gin convention of `c.Set("id", …)` invites.
 const (
-	ctxClaims  = "nvr.claims"
-	ctxUserID  = "nvr.user_id"
+	ctxClaims   = "nvr.claims"
+	ctxUserID   = "nvr.user_id"
 	ctxUsername = "nvr.username"
-	ctxRoles   = "nvr.roles"
+	ctxRoles    = "nvr.roles"
 )
 
 // ClaimsFrom returns the claims the auth middleware put on this request. Nil for
@@ -238,13 +238,7 @@ func denyRoute(c *gin.Context, audit *store.AuditStore, status int, reason strin
 	c.AbortWithStatusJSON(status, gin.H{"error": reason})
 }
 
-// AuditTarget names what an act pointed at, in the ledger's words.
-type AuditTarget struct {
-	Type string
-	ID   string
-}
-
-// deniedActions maps a route shape to the action name its refusal is recorded
+// deniedActions maps a route shape to the ledger verb its refusal is recorded
 // under. The registry is keyed on the router's matched path (`/api/users/:id`),
 // not the request path, so the ledger groups refusals by act and the ids of the
 // rows an operator is hunting stay in `target_id`.
@@ -253,19 +247,19 @@ type AuditTarget struct {
 // has not declared its ledger verb is visible as one, rather than silently
 // writing rows under a verb nobody searches for.
 var deniedActions = map[string]string{
-	"GET /api/auth/profile":           models.AuditAuthProfile,
-	"PUT /api/auth/password":          models.AuditAuthPasswordChange,
-	"POST /api/auth/logout":           models.AuditAuthLogout,
-	"POST /api/auth/register":         models.AuditAuthRegister,
-	"GET /api/users":                  models.AuditUserRead,
-	"POST /api/users":                 models.AuditUserCreate,
-	"GET /api/users/:id":              models.AuditUserRead,
-	"PUT /api/users/:id":              models.AuditUserUpdate,
-	"DELETE /api/users/:id":           models.AuditUserDelete,
-	"GET /api/users/:id/roles":        models.AuditRoleRead,
-	"POST /api/users/:id/roles":       models.AuditUserRoleChange,
-	"GET /api/identities":             models.AuditIdentityRead,
-	"POST /api/identities/:id/link":   models.AuditIdentityLink,
+	"GET /api/auth/profile":            models.AuditAuthProfile,
+	"PUT /api/auth/password":           models.AuditAuthPasswordChange,
+	"POST /api/auth/logout":            models.AuditAuthLogout,
+	"POST /api/auth/register":          models.AuditAuthRegister,
+	"GET /api/users":                   models.AuditUserRead,
+	"POST /api/users":                  models.AuditUserCreate,
+	"GET /api/users/:id":               models.AuditUserRead,
+	"PUT /api/users/:id":               models.AuditUserUpdate,
+	"DELETE /api/users/:id":            models.AuditUserDelete,
+	"GET /api/users/:id/roles":         models.AuditRoleRead,
+	"POST /api/users/:id/roles":        models.AuditUserRoleChange,
+	"GET /api/identities":              models.AuditIdentityRead,
+	"POST /api/identities/:id/link":    models.AuditIdentityLink,
 	"POST /api/identities/:id/approve": models.AuditIdentityApprove,
 	"POST /api/identities/:id/refuse":  models.AuditIdentityRefuse,
 }
@@ -292,12 +286,12 @@ func lookupDeniedAction(c *gin.Context) (string, AuditTarget) {
 // console is designed to live inside: it polls, and a polling console should
 // never be the thing that gets 429.
 type RateLimiter struct {
-	mu       sync.Mutex
-	buckets  map[string]*tokenBucket
-	perMin   int
-	burst    int
-	window   time.Duration
-	now      func() time.Time
+	mu      sync.Mutex
+	buckets map[string]*tokenBucket
+	perMin  int
+	burst   int
+	window  time.Duration
+	now     func() time.Time
 }
 
 type tokenBucket struct {

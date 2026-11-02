@@ -92,11 +92,11 @@ func refreshToken(t *testing.T, jwt *auth.JWTAuth, u *models.User) string {
 func recordSession(t *testing.T, st *store.Store, userID, refreshToken string) *models.Session {
 	t.Helper()
 	session := &models.Session{
-		UserID:     userID,
-		TokenHash:  models.HashRefreshToken(refreshToken),
-		ExpiresAt:  timeNow().Add(models.RefreshTokenTTL),
-		SourceIP:   "127.0.0.1",
-		UserAgent:  "api-suite",
+		UserID:    userID,
+		TokenHash: models.HashRefreshToken(refreshToken),
+		ExpiresAt: timeNow().Add(models.RefreshTokenTTL),
+		SourceIP:  "127.0.0.1",
+		UserAgent: "api-suite",
 	}
 	if err := st.Sessions.Create(session); err != nil {
 		t.Fatalf("creating the session row: %v", err)

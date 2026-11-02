@@ -85,9 +85,13 @@ const AuditRetentionDays = 365
 // Audit action names. Declared here so a handler cannot invent a verb that
 // reads like two other verbs.
 const (
-	AuditAuthLogin          = "auth.login"
-	AuditAuthLoginFailed    = "auth.login_failed"
-	AuditAuthLogout         = "auth.logout"
+	AuditAuthLogin       = "auth.login"
+	AuditAuthLoginFailed = "auth.login_failed"
+	AuditAuthLogout      = "auth.logout"
+	// A refresh is on the record because its failure is the interesting one: a
+	// reused refresh token is a copied credential, and the row is how an operator
+	// learns that a session was dropped.
+	AuditAuthRefresh        = "auth.refresh"
 	AuditAuthPasswordChange = "auth.password_change"
 	AuditAuthRegister       = "auth.register"
 	AuditAuthProfile        = "auth.profile"

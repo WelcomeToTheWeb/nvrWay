@@ -94,6 +94,24 @@ func (s *UserStore) ListAll() ([]models.User, error) {
 	return users, nil
 }
 
+// CountLocalLogin counts the accounts that can authenticate with a password:
+// local, active, and carrying a hash.
+//
+// This is what `GET /api/auth/status` answers `local_login` from. It is a count of
+// rows on purpose: the env flag `BOOTSTRAP_ADMIN_PASSWORD` describes a boot, not
+// an installation. An operator who deletes the break-glass admin has no password
+// way in, and the login page must stop drawing the button — a flag read from the
+// environment would keep drawing it.
+func (s *UserStore) CountLocalLogin() (int64, error) {
+	var count int64
+	if err := s.db.Model(&models.User{}).
+		Where("provider = ? AND status = ? AND password_hash <> ''", models.ProviderLocal, models.UserStatusActive).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // CountAdmins answers the question the break-glass seeding asks: does anyone
 // hold `admin`? An installation that cannot answer this can create an admin it
 // did not intend, or discover at 2 a.m. that it has no way in.
