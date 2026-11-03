@@ -164,10 +164,11 @@ func (h *Handlers) Register(r *gin.Engine) {
 	h.registerUserRoutes(admin)
 	h.registerOIDCRoutes(admin)
 
-	// The detection worker's API. The gate is mounted now so the answer
-	// "internal api disabled" is true the moment WORKER_TOKEN is empty, before
-	// any internal route exists (the routes arrive with S5-10).
-	r.Group("/api/internal/v1", InternalAuthMiddleware(h.Cfg.WorkerToken))
+	// The detection worker's API. The gate is mounted so the answer
+	// "internal api disabled" is true the moment WORKER_TOKEN is empty, and the
+	// two routes the worker polls and posts to are mounted behind it (S5-10).
+	internal := r.Group("/api/internal/v1", InternalAuthMiddleware(h.Cfg.WorkerToken))
+	h.registerDetectorRoutes(internal)
 }
 
 // AuditTarget names what an act pointed at, in the ledger's words.

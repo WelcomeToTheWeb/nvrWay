@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 60 | 53 |
+| 0 | 0 | 2 | 48 | 65 |
 
 Total cards: **115**. In Progress limit: **2**.
 
@@ -37,23 +37,6 @@ _empty_
 
 ## Backlog
 
-
-### Step 5 — Detection worker (Python)
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S5-01`](kanban/cards/S5-01.md) | detector/pyproject.toml: package nvr_detector + pinned deps | S0-01 |
-| [`S5-02`](kanban/cards/S5-02.md) | mjpeg.py: MjpegStream over requests, boundary split, cv2 decode | S5-01 |
-| [`S5-03`](kanban/cards/S5-03.md) | model.py: letterbox preprocess, YOLOv8 decode, NMS, class sets | S5-01 |
-| [`S5-04`](kanban/cards/S5-04.md) | tracker.py: greedy IoU tracker (>=0.30, 6-frame expiry) | S5-03 |
-| [`S5-05`](kanban/cards/S5-05.md) | zones.py: point-in-polygon, bottom-center centroid, intrusion + loiter | S5-04 |
-| [`S5-06`](kanban/cards/S5-06.md) | events.py: open/extend/close state machine + snapshot on open | S5-05 |
-| [`S5-07`](kanban/cards/S5-07.md) | motion.py: CPU gate (160px grayscale absdiff, 1%, continuous mode only) | S5-01 |
-| [`S5-08`](kanban/cards/S5-08.md) | client.py: ServerClient config poll + signal POST with backoff | S5-01 |
-| [`S5-09`](kanban/cards/S5-09.md) | pipeline.py + __main__.py: per-camera thread and env entrypoint | S5-02, S5-03, S5-04, S5-05, S5-06, S5-07, S5-08 |
-| [`S5-10`](kanban/cards/S5-10.md) | Internal worker API: detector config payload + signals intake | S2-08, S1-10, S1-11, S6-03 |
-| [`S5-11`](kanban/cards/S5-11.md) | Detector suite: decode, zones, events, tracker, motion, signals + slow model smoke | S5-02, S5-03, S5-04, S5-05, S5-06, S5-07, S5-08 |
-| [`S5-12`](kanban/cards/S5-12.md) | Model provenance: yolov8n.pt -> onnx export at image build, hashes recorded | S9-02, S10-01 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 
@@ -210,6 +193,23 @@ _empty_
 | [`S4-04`](kanban/cards/S4-04.md) | Crash handling: ffmpeg exit -> log + camera.status offline + restart backoff | S4-01, S4-03, S2-10 |
 | [`S4-05`](kanban/cards/S4-05.md) | GET /api/v1/segments — the timeline manifest | S1-10, S2-08, S4-03 |
 | [`S4-07`](kanban/cards/S4-07.md) | Recorder suite: lavfi fake source writes real segments | S4-01, S4-02, S4-03, S4-04 |
+
+### Step 5 — Detection worker (Python)
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S5-01`](kanban/cards/S5-01.md) | detector/pyproject.toml: package nvr_detector + pinned deps | S0-01 |
+| [`S5-02`](kanban/cards/S5-02.md) | mjpeg.py: MjpegStream over requests, boundary split, cv2 decode | S5-01 |
+| [`S5-03`](kanban/cards/S5-03.md) | model.py: letterbox preprocess, YOLOv8 decode, NMS, class sets | S5-01 |
+| [`S5-04`](kanban/cards/S5-04.md) | tracker.py: greedy IoU tracker (>=0.30, 6-frame expiry) | S5-03 |
+| [`S5-05`](kanban/cards/S5-05.md) | zones.py: point-in-polygon, bottom-center centroid, intrusion + loiter | S5-04 |
+| [`S5-06`](kanban/cards/S5-06.md) | events.py: open/extend/close state machine + snapshot on open | S5-05 |
+| [`S5-07`](kanban/cards/S5-07.md) | motion.py: CPU gate (160px grayscale absdiff, 1%, continuous mode only) | S5-01 |
+| [`S5-08`](kanban/cards/S5-08.md) | client.py: ServerClient config poll + signal POST with backoff | S5-01 |
+| [`S5-09`](kanban/cards/S5-09.md) | pipeline.py + __main__.py: per-camera thread and env entrypoint | S5-02, S5-03, S5-04, S5-05, S5-06, S5-07, S5-08 |
+| [`S5-10`](kanban/cards/S5-10.md) | Internal worker API: detector config payload + signals intake | S2-08, S1-10, S1-11, S6-03 |
+| [`S5-11`](kanban/cards/S5-11.md) | Detector suite: decode, zones, events, tracker, motion, signals + slow model smoke | S5-02, S5-03, S5-04, S5-05, S5-06, S5-07, S5-08 |
+| [`S5-12`](kanban/cards/S5-12.md) | Model provenance: yolov8n.pt -> onnx export at image build, hashes recorded | S5-01, S0-03 |
 
 ### Step 6 — Events, clips, snapshots, webhooks
 

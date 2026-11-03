@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "assets": [
+    {
+      "name": "bus.jpg",
+      "url": "https://github.com/ultralytics/assets/releases/download/v0.0.0/bus.jpg",
+      "bytes": 137419,
+      "sha256": "c02019c4979c191eb739ddd944445ef408dad5679acab6fd520ef9d434bfbc63",
+      "license": "COCO images, CC-BY-4.0 (attribution in README)"
+    },
+    {
+      "name": "yolov8n.pt",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt",
+      "bytes": 6549796,
+      "sha256": "f59b3d833e2ff32e194b5bb8e08d211dc7c5bdf144b90d2c8412c47ccfc83b36",
+      "license": "AGPL-3.0 (Ultralytics assets)"
+    }
+  ],
+  "exported": [
+    {
+      "name": "yolov8n.onnx",
+      "bytes": 12851104,
+      "sha256": "d23c126273b9083b5f60b1e77a3183713c9415dee43ff4d7e62f7a4f22ff506e",
+      "license": "AGPL-3.0 (Ultralytics assets)",
+      "built_by": "docker/Dockerfile.detector stage 1: ultralytics==8.4.195, onnx==1.17.0, export(format='onnx', imgsz=640, opset=17, dynamic=False)",
+      "shapes": {
+        "input": "images [1, 3, 640, 640]",
+        "output": "output0 [1, 84, 8400]"
+      },
+      "recorded": "2026-11-03",
+      "verify": "docker build -f docker/Dockerfile.detector -t nvr-detector:probe . && docker run --rm --entrypoint python nvr-detector:probe -c \"import hashlib,pathlib;print(hashlib.sha256(pathlib.Path('/models/yolov8n.onnx').read_bytes()).hexdigest())\""
+    }
+  ],
+  "notes": [
+    "assets[] is what scripts/fetch-fixture.sh downloads and verifies (S10-01); exported[] is built, not fetched, so the fetcher must not try to download it.",
+    "The two asset byte counts are the plan's pins and both were measured to match exactly on 2026-11-03 (137419 and 6549796 bytes).",
+    "yolov8n.onnx's sha256 is a RECORD of the first successful image build, not a checksum to enforce: the export runs ultralytics' AutoUpdate, which pip-installs onnxruntime and onnxslim (unpinned) and slims the graph, so the bytes depend on versions the two pins do not fix. The same pins exported by hand on the same day produced 63786071b848c00b22f8ffa17104cbd9380e99aa7d83f5e7d6d9ae01e8d03f4e and the same inference (3 people in bus.jpg, best conf 0.890). A build whose hash differs is not broken; a build whose model fails the smoke test is.",
+    "None of these three files are committed (.gitignore: /models/, *.onnx, testdata/bus.jpg, testdata/yolov8n.pt, testdata/yolov8n.onnx)."
+  ]
+}

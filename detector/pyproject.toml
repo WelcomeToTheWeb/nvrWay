@@ -1,0 +1,48 @@
+# nvrWay — the detection worker.
+#
+# Python 3.11–3.12, and deliberately so (plan Step 5): the `onnxruntime` cp312
+# manylinux wheels exist, the dev box's system Python 3.14 has no pip and no venv,
+# and the ML worker is never run there. Every Python command in this repository —
+# tests, the smoke, the image build — runs inside the detector image.
+#
+# The pins below are the plan's, and each one was checked against pypi before it
+# was written: onnxruntime 1.31.1 and opencv-python-headless 5.0.0.93 are both the
+# current releases, and both ship cp312 manylinux wheels, so `pip install` inside
+# python:3.12-slim resolves with nothing built from source.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nvr_detector"
+version = "0.1.0"
+description = "nvrWay detection worker: YOLOv8 ONNX inference, polygon zone rules, event signals"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "onnxruntime==1.31.1",
+    "opencv-python-headless==5.0.0.93",
+    "numpy>=2.1,<3",
+    "requests>=2.32",
+    "pydantic>=2.10",
+]
+
+[project.optional-dependencies]
+# `onnx` is here for the suite, not for the worker: the tests synthesise a tiny
+# ONNX model so `YoloOnnx` is exercised against a real session instead of a mock,
+# and pinning it to the version the image build exports with (S5-12) means the
+# fixture model and the shipped one come from the same serialiser.
+dev = ["pytest>=8.3", "onnx==1.17.0"]
+
+[tool.setuptools.packages.find]
+include = ["nvr_detector*"]
+
+# The `slow` marker is the model smoke: it needs the exported yolov8n.onnx and the
+# bus.jpg fixture, so it runs in the detector image (scripts/detect-smoke.sh) and
+# not on every push. Unregistered markers are warnings, and a warning that a test
+# was silently never selected is worse than an error at collection time.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "slow: needs the exported yolov8n.onnx and the bus.jpg fixture (the model smoke); CI runs it in the detector image, not on every push",
+]
