@@ -15,8 +15,10 @@ package media
 // The tail tracks a byte offset into the CSV and consumes only complete lines, so
 // a half-written line is read on the next tick and a segment is never ingested
 // twice or skipped. Each spawn starts a fresh tail at offset 0, which is the
-// "CSV offset resets on restart" rule: ffmpeg rewrites the list when it opens it,
-// so the new run's list has exactly the new run's segments in it.
+// "CSV offset resets on restart" rule — and the recorder makes that offset true
+// by emptying the list before the child starts (`resetSegmentList`): ffmpeg
+// rewrites the list too, but not until its muxer opens, and a tail that reads in
+// that gap would re-ingest the dead run's lines as this run's.
 
 import (
 	"context"
@@ -167,8 +169,9 @@ func segmentKindFor(recordMode string) string {
 // recorder wrote and cannot read, and the row says so rather than inventing a
 // size.
 func (r *Recorder) recordSegment(cam models.Camera, generation int, started time.Time, entry segmentEntry) (*models.Segment, error) {
-	// The CSV lists names as `<prefix><n>.mp4`; Base keeps the row's path inside
-	// SEGMENTS_DIR whatever ffmpeg puts in that field.
+	// The CSV lists the bare file name — `<slug>-<generation>-<n>.mp4`, which is
+	// what ffmpeg writes when no `-segment_list_entry_prefix` is passed (S4-07).
+	// Base keeps the row's path inside SEGMENTS_DIR whatever ffmpeg puts there.
 	path := filepath.Join(r.Cfg.SegmentsDir, filepath.Base(entry.Name))
 	seg := &models.Segment{
 		ID:         uuid.NewString(),

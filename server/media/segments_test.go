@@ -69,9 +69,8 @@ func TestSegmentBytesComeFromTheFileOnDisk(t *testing.T) {
 	cam := addCamera(t, rec.St, "porch", models.RecordModeContinuous)
 	size := 4242
 	spawns.afterStart = func(n int, argv []string) {
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		list := flagValue(argv, "-segment_list")
-		name := prefix + "0.mp4"
+		name := segmentName(argv, 0)
 		writeSegmentFile(t, rec.Cfg.SegmentsDir, name, size)
 		writeCSVLine(t, list, name, 0, 1)
 	}
@@ -94,9 +93,8 @@ func TestSegmentRowReportsAFileTheRecorderCannotRead(t *testing.T) {
 	rec, _, spawns, _ := newTestRecorder(t)
 	cam := addCamera(t, rec.St, "porch", models.RecordModeContinuous)
 	spawns.afterStart = func(n int, argv []string) {
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		list := flagValue(argv, "-segment_list")
-		writeCSVLine(t, list, prefix+"0.mp4", 0, 1)
+		writeCSVLine(t, list, segmentName(argv, 0), 0, 1)
 	}
 	startRecorder(t, rec)
 
@@ -117,18 +115,17 @@ func TestSegmentTailIngestsEachLineOnce(t *testing.T) {
 	rec, _, spawns, _ := newTestRecorder(t)
 	cam := addCamera(t, rec.St, "porch", models.RecordModeContinuous)
 
-	var list, prefix string
+	var list string
 	spawns.afterStart = func(n int, argv []string) {
 		list = flagValue(argv, "-segment_list")
-		prefix = flagValue(argv, "-segment_list_entry_prefix")
 		for i := 0; i < 2; i++ {
-			name := fmt.Sprintf("%s%d.mp4", prefix, i)
+			name := segmentName(argv, i)
 			writeSegmentFile(t, rec.Cfg.SegmentsDir, name, 1024+i)
 			writeCSVLine(t, list, name, float64(i), float64(i)+1)
 		}
 		// A line ffmpeg has not finished: no newline yet. ffmpeg writes the line
 		// when the segment closes, so this is the shape of a segment in progress.
-		appendRaw(t, list, fmt.Sprintf("%s2.mp4,2.000000,3.000000", prefix))
+		appendRaw(t, list, fmt.Sprintf("%s,2.000000,3.000000", segmentName(argv, 2)))
 	}
 	startRecorder(t, rec)
 
@@ -174,9 +171,8 @@ func TestSegmentTailResetsOnRestart(t *testing.T) {
 	first, _, firstSpawns, _ := newRecorderOn(t, st, cfg)
 	firstSpawns.afterStart = func(n int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		for i := 0; i < 2; i++ {
-			name := fmt.Sprintf("%s%d.mp4", prefix, i)
+			name := segmentName(argv, i)
 			writeSegmentFile(t, cfg.SegmentsDir, name, 1024)
 			writeCSVLine(t, list, name, float64(i), float64(i)+1)
 		}
@@ -191,13 +187,12 @@ func TestSegmentTailResetsOnRestart(t *testing.T) {
 	second, _, secondSpawns, _ := newRecorderOn(t, st, cfg)
 	secondSpawns.afterStart = func(n int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		if err := os.Truncate(list, 0); err != nil {
 			t.Errorf("truncating the segment list: %v", err)
 			return
 		}
 		for i := 0; i < 2; i++ {
-			name := fmt.Sprintf("%s%d.mp4", prefix, i)
+			name := segmentName(argv, i)
 			writeSegmentFile(t, cfg.SegmentsDir, name, 2048)
 			writeCSVLine(t, list, name, float64(i), float64(i)+1)
 		}
@@ -229,9 +224,8 @@ func TestSegmentListLineThatDoesNotParseIsReported(t *testing.T) {
 	logs := captureLogs(t, rec)
 	spawns.afterStart = func(n int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		appendRaw(t, list, "this is not a segment line\n")
-		name := prefix + "0.mp4"
+		name := segmentName(argv, 0)
 		writeSegmentFile(t, rec.Cfg.SegmentsDir, name, 512)
 		writeCSVLine(t, list, name, 0, 1)
 	}
@@ -255,8 +249,7 @@ func TestSegmentKindFollowsTheRecordMode(t *testing.T) {
 
 	spawns.afterStart = func(n int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
-		name := prefix + "0.mp4"
+		name := segmentName(argv, 0)
 		writeSegmentFile(t, rec.Cfg.SegmentsDir, name, 1024)
 		writeCSVLine(t, list, name, 0, 1)
 	}
@@ -280,14 +273,13 @@ func TestSegmentKindFollowsTheRecordMode(t *testing.T) {
 }
 
 // writeThreeSegments is ffmpeg's side of the contract for the clock test: three
-// closed segments, named as the recorder's own prefix says, with the offsets ffmpeg
-// reports.
+// closed segments, named as the recorder's own output pattern says, with the
+// offsets ffmpeg reports.
 func writeThreeSegments(t *testing.T, rec *Recorder) func(n int, argv []string) {
 	return func(n int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		for i := 0; i < 3; i++ {
-			name := fmt.Sprintf("%s%d.mp4", prefix, i)
+			name := segmentName(argv, i)
 			writeSegmentFile(t, rec.Cfg.SegmentsDir, name, 2048+i)
 			writeCSVLine(t, list, name, float64(i)*1.012, float64(i+1)*1.012)
 		}

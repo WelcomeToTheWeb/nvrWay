@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -293,32 +294,42 @@ func (r *Recorder) SegmentListPath(slug string) string {
 // SegmentPattern is ffmpeg's output pattern for one generation of one camera.
 // The name carries the slug, the generation and the segment number, so a file
 // says which camera and which spawn wrote it, and two spawns cannot collide.
+// ffmpeg writes this pattern's basename, with `%d` filled in, into the segment
+// list — that bare name is what the manifest row resolves against SEGMENTS_DIR.
 func (r *Recorder) SegmentPattern(slug string, generation int) string {
 	return filepath.Join(r.Cfg.SegmentsDir, fmt.Sprintf("%s-%d-%%d.mp4", slug, generation))
 }
 
-// SegmentListPrefix is the `-segment_list_entry_prefix` matching that pattern:
-// the CSV lists `<slug>-<generation>-<n>.mp4`, which is what the manifest rows
-// resolve against SEGMENTS_DIR.
-func (r *Recorder) SegmentListPrefix(slug string, generation int) string {
-	return fmt.Sprintf("%s-%d-", slug, generation)
-}
+// SegmentListPrefix was the plan's `-segment_list_entry_prefix`, and it is gone.
+// Real ffmpeg (7.1.5 and 8.1.3, found by card S4-07) *prepends* that value to the
+// segment name it writes into the list, so `<slug>-<generation>-` made the list
+// name `porch-1-porch-1-0.mp4`: a file that does not exist, a row with no bytes,
+// and a restart that cannot read its own last segment number back out of the
+// manifest. With no prefix the list holds the bare file name, which is exactly
+// what `recordSegment` resolves against SEGMENTS_DIR.
 
-// FfmpegArgs is the plan's ingest command for one spawn. It is exported because
-// "the ingest command is exactly the plan's" is a fact a test should assert
-// token by token, not one a reader infers from a builder.
+// FfmpegArgs is the plan's ingest command for one spawn, with the two flags real
+// ffmpeg corrected (S4-07 ran the plan's line against the encoder; the plan was
+// written against a fake that accepts any argv):
+//
+//   - `-segment_format mp4`, not the plan's `-segment_type mp4`. ffmpeg 7.1 and
+//     8.1 both answer "Unrecognized option 'segment_type'" and never start; the
+//     segment muxer's name for that option is `-segment_format`.
+//   - no `-segment_list_entry_prefix` at all, for the reason above.
+//
+// It is exported because "the ingest command is exactly the plan's" is a fact a
+// test should assert token by token, not one a reader infers from a builder.
 func (r *Recorder) FfmpegArgs(cam *models.Camera, generation, startNumber int) []string {
 	argv := []string{r.FfmpegBin, "-hide_banner", "-loglevel", "error"}
 	argv = append(argv, r.SourceCommand(cam)...)
 	argv = append(argv,
 		"-f", "segment",
-		"-segment_type", "mp4",
+		"-segment_format", "mp4",
 		"-segment_time", strconv.Itoa(r.Cfg.SegmentSeconds),
 		"-reset_timestamps", "1",
 		"-segment_start_number", strconv.Itoa(startNumber),
 		"-segment_list", r.SegmentListPath(cam.Slug),
 		"-segment_list_type", "csv",
-		"-segment_list_entry_prefix", r.SegmentListPrefix(cam.Slug, generation),
 		r.SegmentPattern(cam.Slug, generation),
 	)
 	return argv
@@ -626,6 +637,15 @@ func (r *Recorder) cameraLoop(ctx context.Context, run *run) {
 		}
 
 		argv := r.FfmpegArgs(&cam, generation, startNumber)
+		// The list belongs to the run that is about to start, and this supervisor's
+		// tail reads it from offset 0, so it has to be empty **before** the child
+		// exists. ffmpeg rewrites it too — but only when it opens the muxer, a beat
+		// after the spawn — and a tail that reads inside that window turns the dead
+		// generation's lines into this generation's rows (S4-07's real-ffmpeg suite
+		// caught it: generation 2 came back naming `porch-1-0.mp4`).
+		if err := r.resetSegmentList(cam.Slug); err != nil {
+			r.Logf("recorder: %s: %v (recording anyway; the list is emptied again at the next spawn)", cam.Slug, err)
+		}
 		started := r.now().UTC()
 		proc, err := r.newProcess(ctx, argv)
 		if err != nil {
@@ -763,6 +783,22 @@ func (r *Recorder) prepareSpawn(cam models.Camera) (generation, startNumber int,
 		return 0, 0, fmt.Errorf("saving %s=%d: %w", key, generation, err)
 	}
 	return generation, lastNumber + 1, nil
+}
+
+// resetSegmentList empties one camera's segment list before its ffmpeg starts.
+//
+// The recorder owns that emptiness rather than assuming it: ffmpeg truncates the
+// list itself, but not until it has probed the input and opened the muxer, which
+// is after the spawn. The tail starts at offset 0 for every spawn, so a list that
+// still holds the previous generation's lines becomes rows attributed to this one
+// — wrong names, wrong absolute times, and a manifest that double-counts.
+func (r *Recorder) resetSegmentList(slug string) error {
+	path := r.SegmentListPath(slug)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o640)
+	if err != nil {
+		return fmt.Errorf("emptying the segment list %s: %w", path, err)
+	}
+	return f.Close()
 }
 
 // cameraStatus is the plan's `camera.status` payload, as the camera API answers it

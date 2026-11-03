@@ -3,7 +3,7 @@ package media
 import (
 	"errors"
 	"os"
-	"strconv"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,8 +42,8 @@ func TestCrashRestartsAndNumberingContinues(t *testing.T) {
 		t.Fatalf("generation after a crash is %d, want 2", got)
 	}
 	argv := spawns.allArgv()[1]
-	if got := flagValue(argv, "-segment_list_entry_prefix"); got != "porch-2-" {
-		t.Fatalf("the restarted recorder writes generation 1's files: prefix %q, want porch-2-", got)
+	if got, want := argv[len(argv)-1], filepath.Join(rec.Cfg.SegmentsDir, "porch-2-%d.mp4"); got != want {
+		t.Fatalf("the restarted recorder writes generation 1's files: pattern %q, want %q (the generation is in the file name)", got, want)
 	}
 	if got := flagValue(argv, "-segment_start_number"); got != "2" {
 		t.Fatalf("-segment_start_number is %q, want 2 (generation 1 wrote 0 and 1; ffmpeg would restart at 0)", got)
@@ -226,13 +226,12 @@ func TestCrashDuringShutdownDoesNotRestart(t *testing.T) {
 func writeSegments(t *testing.T, rec *Recorder, n int, seconds float64) func(int, []string) {
 	return func(spawn int, argv []string) {
 		list := flagValue(argv, "-segment_list")
-		prefix := flagValue(argv, "-segment_list_entry_prefix")
 		if err := os.Truncate(list, 0); err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Errorf("truncating the segment list %s: %v", list, err)
 			return
 		}
 		for i := 0; i < n; i++ {
-			name := prefix + strconv.Itoa(i) + ".mp4"
+			name := segmentName(argv, i)
 			writeSegmentFile(t, rec.Cfg.SegmentsDir, name, 1024+i)
 			writeCSVLine(t, list, name, float64(i)*seconds, float64(i+1)*seconds)
 		}

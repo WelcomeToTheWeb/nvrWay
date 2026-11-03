@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -497,6 +498,20 @@ func writeCSVLine(t *testing.T, path, name string, start, end float64) {
 	if _, err := fmt.Fprintf(f, "%s,%.6f,%.6f\n", name, start, end); err != nil {
 		t.Fatalf("writing the segment list: %v", err)
 	}
+}
+
+// segmentName is the name ffmpeg puts in its segment list for one number: the
+// basename of the recorder's output pattern, with `%d` replaced. Real ffmpeg
+// lists the bare file name (card S4-07 — the plan's `-segment_list_entry_prefix`
+// is *prepended* to it, which is why the recorder passes no prefix), so the
+// fakes that play ffmpeg's side derive the name from the pattern the recorder
+// actually built rather than from a flag it no longer sends.
+func segmentName(argv []string, n int) string {
+	if len(argv) == 0 {
+		return ""
+	}
+	base := filepath.Base(argv[len(argv)-1])
+	return strings.Replace(base, "%d", strconv.Itoa(n), 1)
 }
 
 // segmentsFor reads a camera's manifest rows back, oldest first.
