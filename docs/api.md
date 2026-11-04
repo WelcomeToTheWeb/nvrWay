@@ -138,12 +138,65 @@ recording.
 
 ## Events
 
-`GET /api/v1/events` with the filters (`camera_id`, `class`, `severity`,
-`from`, `to`, `q`, `limit` clamped at 200), `GET /api/v1/events/:id`,
-`DELETE /api/v1/events/:id`, `GET /api/v1/events/:id/snapshot`
-(`image/jpeg`), `GET /api/v1/events/:id/clip` (`video/mp4`, Range → 206)
-(S6-04, S6-05). State the empty-window shape (`clip_key == ""`) and what a
-delete removes on disk.
+`GET /api/v1/events` with the filters (`camera_id`, `class`, `zone_id`, `severity`,
+`from`, `to`, `q`, `limit` clamped at 200, `offset`), answering
+`{events, total, limit, offset, truncated}`; `GET /api/v1/events/:id`; and
+`DELETE /api/v1/events/:id`, which is operator-only, cancels any clip assembly
+still running for that event, and enqueues the purge of whatever media is on a
+tier (S6-02, S6-03, S6-04).
+
+`q` matches camera and zone *names*, because that is what an operator types; the
+row stores zone ids, and the camera row holds the pair.
+
+### The media routes
+
+`GET /api/v1/events/:id/snapshot` → `image/jpeg`
+`GET /api/v1/events/:id/clip` → `video/mp4`
+
+Both are `viewer`-readable and both are server-proxied: the console never receives
+a path, and a tier's credential never reaches the browser.
+
+**Local file first, then the storage tier.** A file inside `CLIPS_DIR` /
+`SNAPSHOTS_DIR` is served by `http.ServeContent`, which answers `Range: bytes=a-b`
+with **206** and `Content-Range`, and answers `If-Modified-Since` with **304**. With
+no readable local copy and the row's upload stamp set (`clip_uploaded_at`,
+`snapshot_uploaded_at`), the object at the row's key is streamed from the
+installation's default backend, **from byte 0, whole**:
+
+```
+Content-Type:   video/mp4 | image/jpeg
+Accept-Ranges:  bytes
+Cache-Control:  private, max-age=3600
+Content-Length: <the object's size, from a Stat before the first byte>
+Last-Modified:  <the object's mtime>
+```
+
+A remote object **cannot be seeked**: the storage interface reads an object from
+byte 0 and has no ranged read, so a request carrying `Range` gets the whole object
+with a **200** — the fallback HTTP sanctions, which browsers play forward. Seek on
+a remote clip is a v2 item, and `docs/architecture.md` § Playback and the remote
+seek gap states what v2 adds.
+
+The answers, each named because the console draws each one differently:
+
+| Answer | When |
+| --- | --- |
+| `200` | a local file, or the object on the tier |
+| `206` | a `Range` request answered by a **local** file |
+| `404 {"error":"event not found"}` | no such event |
+| `404 {"error":"clip not available"}` / `"snapshot not available"` | the event stands without that media: it was never made (a camera in `record_mode=off`, a window with no segments), it aged out of both copies, or no backend is configured |
+| `502 {"error":"…","tier":"<name>"}` | the tier is configured and not usable — `discovery_unreachable`, `bad credentials`, `bucket missing`, `sftp host key changed` |
+| `500 {"error":"…","tier":""}` | this process cannot open the stored credential, or the configured kind has no driver in this build |
+
+The 404 and the 502 are not interchangeable. An object that is gone from a tier
+that is there is a fact about retention and the operator reads it as "this event
+has no clip"; a tier that is not mounted is a fact about the host, and every clip
+at once looks like it was never recorded. The `fs` driver checks its root on the
+miss path so the two cannot be confused.
+
+`clip_key == ""` on an event means the clip window held no segments. The event is
+filed, the snapshot is there, and the clip route answers the named 404; the log
+carries the window it looked at.
 
 ## Storage backends, queue and prefixes
 

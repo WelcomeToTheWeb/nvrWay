@@ -218,11 +218,27 @@ func (b *fsBackend) Get(ctx context.Context, key string) (io.ReadCloser, error) 
 	f, err := os.Open(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("storage: fs: %s: %w", key, ErrNotFound)
+			return nil, b.notFoundOrRoot(key)
 		}
 		return nil, b.mapIO("opening", key, err)
 	}
 	return f, nil
+}
+
+// notFoundOrRoot is the answer to "there is nothing at that path", which on a
+// filesystem cannot tell a missing object from a missing mount until someone asks
+// which. It asks, once, here.
+//
+// The distinction is not pedantry: `ErrNotFound` is a fact about one object and
+// the playback proxy turns it into "this event has no clip", while an unmounted
+// volume makes that answer correct-looking for every clip at once. `fs.Ping` and
+// `fs.List` already refuse a root that is not there; a read that reported the
+// same situation as "no such object" would be the one path that hid it.
+func (b *fsBackend) notFoundOrRoot(key string) error {
+	if st, err := os.Stat(b.root); err != nil || !st.IsDir() {
+		return fmt.Errorf("storage: fs: %w: %s is not a readable directory on this host", ErrBucketMissing, b.root)
+	}
+	return fmt.Errorf("storage: fs: %s: %w", key, ErrNotFound)
 }
 
 // Stat reports the object.
@@ -240,7 +256,7 @@ func (b *fsBackend) Stat(ctx context.Context, key string) (ObjectInfo, error) {
 	info, err := os.Stat(full)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return ObjectInfo{}, fmt.Errorf("storage: fs: %s: %w", key, ErrNotFound)
+			return ObjectInfo{}, b.notFoundOrRoot(key)
 		}
 		return ObjectInfo{}, b.mapIO("statting", key, err)
 	}

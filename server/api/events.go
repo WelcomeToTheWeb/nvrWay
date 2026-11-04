@@ -29,6 +29,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -41,6 +42,7 @@ import (
 	"gorm.io/gorm"
 
 	"nvr/server/models"
+	"nvr/server/storage"
 	"nvr/server/store"
 )
 
@@ -74,19 +76,22 @@ func (h *Handlers) registerEventRoutes(r *gin.Engine) {
 // `<SNAPSHOTS_DIR>/<event_id>.jpg`, and the row's `local_snapshot_path` is the
 // only thing that says where it is: the console never gets a path, playback is
 // server-proxied, and a name on this server's disk is not a name the browser can
-// dial.
+// dial. When that file is gone and the row says the picture reached the storage
+// tier, the route streams it from the tier instead (S6-05) — the same order the
+// clip route uses, so the two cannot disagree inside one drawer.
 //
-// The three answers a caller can get are each named, because the console draws
-// each one differently:
+// The answers a caller can get are each named, because the console draws each one
+// differently:
 //
 //	200 image/jpeg                            the picture
 //	404 {"error":"event not found"}           no such event
 //	404 {"error":"snapshot not available"}    the event stands, without a picture
+//	502 {"error":"…","tier":"<name>"}         the tier is there and not usable
 //
-// The last one is the interesting case and it is not an error the operator has
-// to fix: it is the state an event enters when its evidence is absent or aged
-// out, and the plan's rule for the clip ("the UI shows a named 404 for events
-// whose media is gone") is applied to the snapshot identically.
+// The 404 is the interesting case and it is not an error the operator has to fix:
+// it is the state an event enters when its evidence is absent or aged out, and the
+// plan's rule for the clip ("the UI shows a named 404 for events whose media is
+// gone") is applied to the snapshot identically.
 //
 // `Cache-Control: private, max-age=3600` is safe because an event's picture is
 // written once and never rewritten — a replayed `open` fills a missing one and
@@ -97,41 +102,56 @@ func (h *Handlers) EventSnapshot(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if h.serveLocalSnapshot(c, event) {
+		return
+	}
+	if event.SnapshotUploaded() && h.streamFromTier(c, event.SnapshotKey, "image/jpeg") {
+		return
+	}
+	jsonError(c, http.StatusNotFound, "snapshot not available")
+}
 
+// serveLocalSnapshot is the clip route's counterpart over `SNAPSHOTS_DIR`: it
+// writes the response when the row names a readable file, and returns false when
+// it did not, so the tier gets its turn.
+//
+// The tier branch is not in this card's exit criteria, and it is here anyway for
+// a reason: an event whose footage aged out locally still has its picture on the
+// tier, and a drawer that plays a clip around a broken `<img>` is a bug the
+// console cannot fix from the event view alone. The two media routes resolve
+// "where are the bytes" the same way, or they disagree in the same drawer.
+func (h *Handlers) serveLocalSnapshot(c *gin.Context, event *models.Event) bool {
 	if event.LocalSnapshotPath == "" {
 		// The absent-snapshot case, filed that way on purpose by the signal path
 		// (no snapshot on the signal, over the cap, or a write that failed). The
 		// event is still an event.
-		jsonError(c, http.StatusNotFound, "snapshot not available")
-		return
+		return false
 	}
 	if !h.snapshotIsInPlace(event.LocalSnapshotPath) {
 		// The row names a file this server will not read: outside SNAPSHOTS_DIR
 		// (a row restored from another installation), or unreadable. Serving it
 		// anyway would make the route a general file reader, and the log says
 		// which of the two happened.
-		log.Printf("events: snapshot for %s names %s, which is not inside %s; answering not available",
+		log.Printf("events: snapshot for %s names %s, which is not inside %s; trying the tier",
 			event.ID, event.LocalSnapshotPath, h.Cfg.SnapshotsDir)
-		jsonError(c, http.StatusNotFound, "snapshot not available")
-		return
+		return false
 	}
 
 	f, err := os.Open(event.LocalSnapshotPath)
 	if err != nil {
 		// The row says the picture is here and the disk says otherwise: the
 		// sweeper's local delete (S7-09) or a volume that came back without it.
-		// The event survives its media, so this is a named 404 and not a 500.
+		// The event survives its media, so the tier gets a turn and then this is a
+		// named 404 and not a 500.
 		log.Printf("events: snapshot for %s could not be opened at %s: %v", event.ID, event.LocalSnapshotPath, err)
-		jsonError(c, http.StatusNotFound, "snapshot not available")
-		return
+		return false
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
 		log.Printf("events: snapshot for %s could not be stat'd at %s: %v", event.ID, event.LocalSnapshotPath, err)
-		jsonError(c, http.StatusNotFound, "snapshot not available")
-		return
+		return false
 	}
 
 	c.Header("Cache-Control", "private, max-age=3600")
@@ -140,6 +160,7 @@ func (h *Handlers) EventSnapshot(c *gin.Context) {
 	// request and a conditional GET, which a console redrawing a detail drawer
 	// sends without being clever about it.
 	http.ServeContent(c.Writer, c.Request, filepath.Base(event.LocalSnapshotPath), info.ModTime(), f)
+	return true
 }
 
 // snapshotIsInPlace reports that a row's snapshot path is a file this server is
@@ -697,66 +718,203 @@ func (h *Handlers) removeLocalEventMedia(event *models.Event) int {
 
 // -- the clip (S6-04; the remote copy is S6-05) ---------------------------
 
-// EventClip serves the assembled clip.
+// EventClip serves the assembled clip, from whichever copy still exists.
 //
 // GET /api/v1/events/:id/clip → video/mp4
 //
 //	200 video/mp4                       the clip (206 for a Range request)
 //	404 {"error":"event not found"}     no such event
 //	404 {"error":"clip not available"}  the event stands, without a clip
+//	502 {"error":"…","tier":"<name>"}   the tier is there and not usable
 //
-// `ServeContent`, not a copy: it is what makes `Range: bytes=…` answer 206, which
-// is how a scrubber seeks into a clip without downloading it, and it answers a
-// conditional GET for a drawer that redraws. The type is set explicitly because
-// `docs/api.md` promises `video/mp4` and the file's extension is not what the
-// contract rests on.
+// **Local first, then the tier.** A file in `CLIPS_DIR` is served by
+// `ServeContent`, which is what makes `Range: bytes=…` answer 206 — how a
+// scrubber seeks into a clip without downloading it — and what answers a
+// conditional GET for a drawer that redraws. With no local copy and the row’s
+// upload stamp set, the bytes are on the storage tier and the route streams them
+// from byte 0 (S6-05, `streamFromTier`): no seek, the whole object, the same
+// type.
 //
-// "clip not available" covers three states the console draws identically — no
-// clip was ever cut (a camera in `record_mode=off`, or a window that held no
-// segments), the local file was aged out, and the copy that exists is on a tier
-// this build cannot stream yet (`clip_uploaded_at` set with no local file, which
-// S6-05 turns into a 200 by opening the backend and copying from byte 0). The log
-// names which of the three it was, because the operator's question and the
-// browser's answer are different questions.
+// "clip not available" covers the states the console draws identically — no clip
+// was ever cut (a camera in `record_mode=off`, or a window that held no
+// segments), and the local copy aged out *and* the tier copy aged out with it.
+// The log names which one it was, because the operator’s question and the
+// browser’s answer are different questions.
 func (h *Handlers) EventClip(c *gin.Context) {
 	event, ok := h.eventByID(c)
 	if !ok {
 		return
 	}
-
-	if event.LocalClipPath == "" {
-		if event.ClipUploaded() {
-			log.Printf("events: clip %s is on the tier at %s with no local copy; streaming from the backend is S6-05",
-				event.ID, event.ClipKey)
-		}
-		jsonError(c, http.StatusNotFound, "clip not available")
+	if h.serveLocalClip(c, event) {
 		return
 	}
-	if !h.clipIsInPlace(event.LocalClipPath) {
-		log.Printf("events: clip for %s names %s, which is not inside %s; answering not available",
-			event.ID, event.LocalClipPath, h.Cfg.ClipsDir)
-		jsonError(c, http.StatusNotFound, "clip not available")
+	if event.ClipUploaded() && h.streamFromTier(c, event.ClipKey, "video/mp4") {
 		return
+	}
+	jsonError(c, http.StatusNotFound, "clip not available")
+}
+
+// serveLocalClip answers from `CLIPS_DIR` when the row names a file this server
+// can read, and returns false when it wrote nothing — so the caller can try the
+// tier without unwinding a half-written response.
+func (h *Handlers) serveLocalClip(c *gin.Context, event *models.Event) bool {
+	if event.LocalClipPath == "" {
+		return false
+	}
+	if !h.clipIsInPlace(event.LocalClipPath) {
+		// The row names a file this server will not read: outside CLIPS_DIR (a row
+		// restored from another installation), or unreadable. Serving it anyway
+		// would make the route a general file reader, and the log says which of the
+		// two happened.
+		log.Printf("events: clip for %s names %s, which is not inside %s; trying the tier",
+			event.ID, event.LocalClipPath, h.Cfg.ClipsDir)
+		return false
 	}
 
 	f, err := os.Open(event.LocalClipPath)
 	if err != nil {
 		log.Printf("events: clip for %s could not be opened at %s: %v", event.ID, event.LocalClipPath, err)
-		jsonError(c, http.StatusNotFound, "clip not available")
-		return
+		return false
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
 		log.Printf("events: clip for %s could not be stat'd at %s: %v", event.ID, event.LocalClipPath, err)
-		jsonError(c, http.StatusNotFound, "clip not available")
-		return
+		return false
 	}
 
+	// The type is set explicitly because `docs/api.md` promises `video/mp4` and
+	// the file’s extension is not what the contract rests on.
 	c.Header("Content-Type", "video/mp4")
 	c.Header("Cache-Control", "private, max-age=3600")
 	http.ServeContent(c.Writer, c.Request, filepath.Base(event.LocalClipPath), info.ModTime(), f)
+	return true
+}
+
+// -- media that lives only on the storage tier (S6-05) --------------------
+
+// streamFromTier copies one object off the storage tier into the response.
+//
+// It returns **false** when the tier has nothing for this row — no default
+// backend at all (a local-only installation), or the object is not on it — which
+// is the caller's named-404 case, and **true** when the response has been
+// written, successfully or with a status of its own.
+//
+// Two things here are the plan's remote-playback gap, and neither is hidden:
+//
+//   - **There is no seek.** The tier's `Backend` reads an object from byte 0;
+//     there is no ranged read to answer a `Range` with. A request that carries
+//     one gets the whole object with a 200, which is the fallback HTTP sanctions
+//     and browsers handle. Seek-on-remote is the v2 item the README's roadmap
+//     names, and `docs/architecture.md` states the gap where the console author
+//     will read it.
+//   - **The size is asked for before the first byte.** `Stat` then `Get` is two
+//     round trips where one could be enough, and the extra one buys a
+//     `Content-Length` that is true and a 404 that arrives *before* a 200's
+//     headers have gone — the difference between a drawer that says "no clip" and
+//     one that shows a player that stopped halfway.
+//
+// The destination is the installation's default backend. The event row records
+// the object's *key*, not which backend holds it, and every other path that
+// touches an event's media — the delete, the camera purge — resolves the tier the
+// same way. Changing the default does not move old clips; that is a fact about
+// the row, not about this function.
+func (h *Handlers) streamFromTier(c *gin.Context, key, contentType string) bool {
+	if key == "" {
+		return false
+	}
+	backend, err := h.St.StorageBackends.GetDefault()
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("events: the storage tier is unreadable for %s: %v", key, err)
+		}
+		// No default backend is not a failure: it is a local-only installation,
+		// and the caller's named 404 is the right answer for it.
+		return false
+	}
+
+	ctx := c.Request.Context()
+	tier, err := storage.OpenWithSettings(ctx, backend, h.sealKey, h.St.Settings)
+	if err != nil {
+		h.tierFailure(c, key, err)
+		return true
+	}
+
+	info, err := tier.Stat(ctx, key)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			// The row says the object was uploaded and the tier does not have it:
+			// aged out by the retention sweep, or removed by hand. The event
+			// stands, its media does not, and the caller's named 404 is the truth.
+			log.Printf("events: %s is not on the tier at %s, though the row says it was uploaded", key, backend.Name)
+			return false
+		}
+		h.tierFailure(c, key, err)
+		return true
+	}
+
+	body, err := tier.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return false
+		}
+		h.tierFailure(c, key, err)
+		return true
+	}
+	defer body.Close()
+
+	if contentType == "" {
+		contentType = info.ContentType
+	}
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "private, max-age=3600")
+	c.Header("Content-Length", strconv.FormatInt(info.Size, 10))
+	if !info.ModTime.IsZero() {
+		c.Header("Last-Modified", info.ModTime.UTC().Format(http.TimeFormat))
+	}
+	c.Status(http.StatusOK)
+
+	if _, err := io.Copy(c.Writer, body); err != nil {
+		// The headers are already gone, so the status cannot change. A client that
+		// closed the connection is the normal case here and is not worth a line;
+		// a tier that stopped answering mid-object is, because the player shows a
+		// clip that ends early and the operator cannot tell why.
+		if c.Request.Context().Err() != nil {
+			return true
+		}
+		log.Printf("events: streaming %s from the tier stopped: %v", key, err)
+	}
+	return true
+}
+
+// tierFailure answers a tier that is there but not usable, with the named state
+// beside the sentence so the console can say what to fix rather than that
+// something is wrong.
+func (h *Handlers) tierFailure(c *gin.Context, key string, err error) {
+	status := http.StatusBadGateway
+	message := "the storage tier is not reachable"
+
+	switch {
+	case errors.Is(err, storage.ErrBadKey):
+		// Not the tier's fault and not the operator's setting: this process cannot
+		// open the stored credential, which is an environment problem.
+		status = http.StatusInternalServerError
+		message = "the storage credential cannot be opened with this installation's key"
+	case errors.Is(err, storage.ErrKindUnsupported):
+		status = http.StatusInternalServerError
+		message = "this build has no driver for the configured storage tier"
+	}
+
+	log.Printf("events: the storage tier refused %s: %v", key, err)
+	c.JSON(status, gin.H{
+		"error": message,
+		"tier":  storage.ErrorCode(err),
+	})
 }
 
 // eventByID is the lookup every event route shares — the detail, the snapshot,
