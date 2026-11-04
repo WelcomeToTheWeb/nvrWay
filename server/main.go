@@ -139,6 +139,11 @@ func main() {
 	// serving because a clip is missing.
 	clips := media.NewClipBuilder(cfg, st)
 	handlers.Clips = clips
+	// The assembly is the one fact about a closed event that still moves, and it
+	// lands on a timer rather than in a request, so the builder hands the finished
+	// row to the live feed. Without this the console's player waits on a clip that
+	// already exists until someone reloads the wall.
+	clips.OnAssembled = handlers.BroadcastEventUpdate
 	go clips.Run(ctx)
 	defer clips.Close()
 	log.Printf("Clip builder: assembling into %s, armed %ds after an event's last signal (pre-roll %ds, post-roll %ds, event max %ds)",

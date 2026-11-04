@@ -405,6 +405,11 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 		h.Webhooks.NotifyClose(event, cam)
 	}
 
+	// S6-08: the same applied signal that may notify a webhook is what the consoles
+	// watching the wall are waiting for. The action on the row decides which of the
+	// three messages goes out, and the extend is throttled inside the hub.
+	h.broadcastEvent(event)
+
 	return reply, ""
 }
 

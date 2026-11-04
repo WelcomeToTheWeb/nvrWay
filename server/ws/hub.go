@@ -137,6 +137,12 @@ type Hub struct {
 	// put a known clock in and assert the ts the console receives, not a call
 	// site that happens to read the wall clock.
 	now func() time.Time
+
+	// updates is the plan's throttle on `event.update`: at most one send per event
+	// per EventUpdateWindow. It lives on the hub because the hub is the thing that
+	// decides what reaches every console at once — a throttle per caller would let
+	// two callers each send their own five-second stream.
+	updates *updateThrottle
 }
 
 // NewHub builds the fan-out for one server.
@@ -165,6 +171,7 @@ func NewHubWithClock(jwt *auth.JWTAuth, origins []string, now func() time.Time) 
 		jwt:     jwt,
 		origins: normalizeOrigins(origins),
 		now:     now,
+		updates: newUpdateThrottle(EventUpdateWindow, now),
 	}
 }
 
@@ -332,6 +339,112 @@ func (h *Hub) EventUpdate(payload any) error { return h.Broadcast(TypeEventUpdat
 
 // EventClose announces a closed event.
 func (h *Hub) EventClose(payload any) error { return h.Broadcast(TypeEventClose, payload) }
+
+// EventUpdateWindow is the plan's throttle on `event.update`: one send per event
+// every 5 s. A worker extends an event every detection tick — five per second on a
+// busy camera — and a wall of sixty events would put three thousand frames a second
+// on every console to say nothing the operator can read.
+const EventUpdateWindow = 5 * time.Second
+
+// gateStaleAfter is the belt on the throttle's memory. The signal path forgets a
+// gate when its event closes, and an event cannot stay open past the ceiling, so an
+// entry that has not been touched for an hour belongs to an event that stopped
+// existing without anyone telling the hub — a restart, a row deleted by hand.
+const gateStaleAfter = time.Hour
+
+// updateThrottle is the leading edge of the window, per event.
+//
+// The leading edge is enough here because of what the messages carry: all three
+// event types send the whole event view, and `event.close` is not throttled. So the
+// state an extend loses to the window is back on the wire within five seconds, and
+// the last state of all arrives with the close. A trailing-edge flush would need a
+// timer per event to deliver, on the same schedule, something the close already
+// delivers.
+type updateThrottle struct {
+	mu     sync.Mutex
+	window time.Duration
+	now    func() time.Time
+	last   map[string]time.Time
+}
+
+func newUpdateThrottle(window time.Duration, now func() time.Time) *updateThrottle {
+	if window <= 0 {
+		window = EventUpdateWindow
+	}
+	if now == nil {
+		now = time.Now
+	}
+	return &updateThrottle{window: window, now: now, last: map[string]time.Time{}}
+}
+
+// allow reports whether an update for one event may go out now, and records the
+// instant when it may not go out again.
+func (t *updateThrottle) allow(eventID string) bool {
+	if eventID == "" {
+		// No event to key on: an unkeyed update would let one event's storm spend
+		// another's window, which is the bug the throttle exists to prevent. Send it
+		// rather than silently dropping it, and let the caller own the key.
+		return true
+	}
+
+	moment := t.now().UTC()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if sent, ok := t.last[eventID]; ok && moment.Sub(sent) < t.window {
+		return false
+	}
+
+	// An allowed send is the only moment the map is guaranteed to be looked at, so
+	// it is when the stale gates go — and it has to run for a *new* id too, which is
+	// the case that would otherwise leak: the event that closed while nobody was
+	// watching is exactly the one no longer in the map.
+	//
+	// The scan is over the events open right now, once per window per event: a
+	// hundred entries every few seconds, which is not a cost worth a second data
+	// structure.
+	for id, seen := range t.last {
+		if id != eventID && moment.Sub(seen) > gateStaleAfter {
+			delete(t.last, id)
+		}
+	}
+	t.last[eventID] = moment
+	return true
+}
+
+// forget drops one event's gate. The close path calls it, because an event that has
+// closed will never extend again and its gate is memory with no purpose.
+func (t *updateThrottle) forget(eventID string) {
+	if eventID == "" {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.last, eventID)
+}
+
+func (t *updateThrottle) gated(eventID string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	_, ok := t.last[eventID]
+	return ok
+}
+
+// EventUpdateThrottled sends `event.update` for one event at most once per
+// EventUpdateWindow, and returns nil when the window dropped it. The drop is not an
+// error: the plan asked for the throttle, and a caller that treated it as a failure
+// would log a line for every extend of a busy camera.
+func (h *Hub) EventUpdateThrottled(eventID string, payload any) error {
+	if !h.updates.allow(eventID) {
+		return nil
+	}
+	return h.Broadcast(TypeEventUpdate, payload)
+}
+
+// ForgetEvent stops throttling one event. The event close and the event delete both
+// call it; nothing else needs to, because the gate is only ever armed by an extend.
+func (h *Hub) ForgetEvent(eventID string) { h.updates.forget(eventID) }
 
 // CameraStatus announces a camera's state.
 func (h *Hub) CameraStatus(payload any) error { return h.Broadcast(TypeCameraStatus, payload) }

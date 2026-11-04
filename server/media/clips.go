@@ -120,6 +120,17 @@ type ClipBuilder struct {
 	// criterion, so it is asserted by reading the log, not by watching stdout.
 	Logf func(format string, args ...any)
 
+	// OnAssembled runs after an assembly has landed on the event row, with the row
+	// as it now reads — including the empty-window case, where what landed is the
+	// knowledge that no clip is coming.
+	//
+	// It is a callback rather than a hub reference because this package must not own
+	// the message shapes: what the console receives is the event view, and the view
+	// belongs to the API. main.go wires the two together, and a builder with no
+	// callback is a builder that records clips without announcing them — which is
+	// what every build before S6-08 was.
+	OnAssembled func(ev *models.Event)
+
 	// run, arm and now are the injected seams: the media commands, the
 	// scheduler, and the clock every delay is measured against.
 	run  clipCommand
@@ -415,6 +426,9 @@ func (b *ClipBuilder) Assemble(ctx context.Context, eventID string) error {
 		}
 		b.Logf("clip skipped: no segments for window (event %s, %s → %s, %d row(s) unreadable)",
 			ev.ID, from.Format(time.RFC3339), to.Format(time.RFC3339), missing)
+		// The console's player has been waiting on this event; "there will be no
+		// clip" is the answer it needs as much as the clip itself.
+		b.notifyAssembled(ev)
 		return nil
 	}
 
@@ -481,9 +495,26 @@ func (b *ClipBuilder) Assemble(ctx context.Context, eventID string) error {
 		return fmt.Errorf("clips: event %s: the clip could not be recorded on the row: %w", ev.ID, err)
 	}
 
+	// The row now reads differently and the consoles watching do not poll. The
+	// in-memory copy is brought in line with the write first, so the payload the
+	// callback builds carries the clip rather than the state from before it.
+	ev.LocalClipPath = outPath
+	ev.ClipSeconds = clipSeconds
+	b.notifyAssembled(ev)
+
 	b.Logf("clips: event %s: %d segment(s) → %s (window %.2fs, footage %.2fs, clip %.2fs, ffprobe %s)",
 		ev.ID, len(segments), outPath, windowSeconds, sumSeconds, clipSeconds, formatSeconds(measured, probeErr))
 	return nil
+}
+
+// notifyAssembled hands the finished row to the live feed. A builder with no
+// callback is the common case in tests and in a build with no hub, so this is the
+// only place the nil check lives.
+func (b *ClipBuilder) notifyAssembled(ev *models.Event) {
+	if b.OnAssembled == nil || ev == nil {
+		return
+	}
+	b.OnAssembled(ev)
 }
 
 // window is the clip's span: the pre-roll before the trigger and the post-roll

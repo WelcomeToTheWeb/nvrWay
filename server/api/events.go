@@ -613,6 +613,10 @@ func (h *Handlers) DeleteEvent(c *gin.Context) {
 	if h.Clips != nil {
 		h.Clips.Cancel(event.ID)
 	}
+	if h.Hub != nil {
+		// The row is about to stop existing, and so is its update throttle gate.
+		h.Hub.ForgetEvent(event.ID)
+	}
 
 	queued, warning := h.enqueueEventPurge(event)
 	removed := h.removeLocalEventMedia(event)
@@ -790,6 +794,65 @@ func (h *Handlers) serveLocalClip(c *gin.Context, event *models.Event) bool {
 	c.Header("Cache-Control", "private, max-age=3600")
 	http.ServeContent(c.Writer, c.Request, filepath.Base(event.LocalClipPath), info.ModTime(), f)
 	return true
+}
+
+// -- the live feed (S6-08) ------------------------------------------------
+
+// broadcastEvent puts one applied signal on the live feed.
+//
+// The three triggers are the console's LIVE card: `event.new` makes the event
+// appear, `event.update` keeps it fresh while the worker extends it, and
+// `event.close` retires the badge. Nothing else sends them, so the sequence a
+// console sees is exactly the sequence the store applied — which is what lets the
+// wall show "LIVE" from the messages alone, with no polling behind it.
+//
+// The payload is the same view the list and the drawer answer, whole rather than
+// partial. That is what makes the plan's throttle safe on the leading edge: an
+// extend that loses the window is back on the wire within five seconds, and the
+// final state of every event arrives with its close, which is not throttled.
+func (h *Handlers) broadcastEvent(ev *models.Event) {
+	if h.Hub == nil || ev == nil {
+		return
+	}
+	refs, err := h.cameraRefsFor(ev.CameraID)
+	if err != nil {
+		// The live feed is not the fact; the row is. A camera read that fails
+		// costs the console one frame, and the next signal sends it again.
+		return
+	}
+	view := h.viewEvent(ev, refs, false)
+
+	switch ev.Action {
+	case models.SignalActionOpen:
+		_ = h.Hub.EventNew(view)
+	case models.SignalActionExtend:
+		// Throttled: a worker extends on every detection tick, and sixty busy
+		// cameras would put three thousand frames a second on every console to
+		// say nothing an operator can read.
+		_ = h.Hub.EventUpdateThrottled(ev.ID, view)
+	case models.SignalActionClose:
+		_ = h.Hub.EventClose(view)
+		// The event will never extend again, so its gate is memory with nothing
+		// left to throttle.
+		h.Hub.ForgetEvent(ev.ID)
+	}
+}
+
+// BroadcastEventUpdate puts a changed event on the live feed for a change that did
+// not arrive as a signal — the clip assembler's, which lands seconds after the close
+// and is the one fact about a closed event that still moves.
+//
+// It is not throttled: one assembly is one message per event, and a player that
+// lights up when the file exists is worth more than the frame it costs.
+func (h *Handlers) BroadcastEventUpdate(ev *models.Event) {
+	if h.Hub == nil || ev == nil {
+		return
+	}
+	refs, err := h.cameraRefsFor(ev.CameraID)
+	if err != nil {
+		return
+	}
+	_ = h.Hub.EventUpdate(h.viewEvent(ev, refs, false))
 }
 
 // -- media that lives only on the storage tier (S6-05) --------------------

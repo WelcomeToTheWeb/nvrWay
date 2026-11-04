@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 33 | 81 |
+| 0 | 0 | 2 | 32 | 82 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -37,12 +37,6 @@ _empty_
 
 ## Backlog
 
-
-### Step 6 — Events, clips, snapshots, webhooks
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S6-08`](kanban/cards/S6-08.md) | WS fan-out: event.new / event.update (throttled) / event.close | S2-10, S6-03 |
 
 ### Step 8 — Web console
 
@@ -202,6 +196,7 @@ _empty_
 | [`S6-05`](kanban/cards/S6-05.md) | Clip delivery: local Range/206, remote streamed from byte 0 | S6-04, S7-01 |
 | [`S6-06`](kanban/cards/S6-06.md) | webhooks/: signed delivery with 3 attempts + delivery rows | S1-11, S6-03 |
 | [`S6-07`](kanban/cards/S6-07.md) | Webhook settings routes (admin) + delivery history | S2-08, S6-06 |
+| [`S6-08`](kanban/cards/S6-08.md) | WS fan-out: event.new / event.update (throttled) / event.close | S2-10, S6-03 |
 
 ### Step 7 — Storage backends, upload queue, retention
 
