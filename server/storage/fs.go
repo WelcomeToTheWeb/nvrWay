@@ -296,6 +296,19 @@ func (b *fsBackend) List(ctx context.Context, prefix string) ([]string, error) {
 		}
 	}
 
+	// The root itself is a different question from the prefix. A prefix with
+	// nothing under it is an empty listing — "this path has no footage yet" is
+	// the answer a Settings page needs before the first recording lands — but a
+	// root that is not there means the mount is not there, and an empty listing
+	// is exactly what an unmounted tier looks like. `Ping` says so, `s3` says so
+	// (NoSuchBucket), and a listing that answered "nothing here" would send the
+	// operator to look for footage that was never reachable.
+	if info, err := os.Stat(b.root); err != nil {
+		return nil, b.mapIO("reaching", b.root, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("storage: fs: %s is not a directory: %w", b.root, ErrBucketMissing)
+	}
+
 	walkFrom := b.root
 	if cleanedPrefix != "" {
 		// The prefix may name an object rather than a directory

@@ -147,11 +147,78 @@ delete removes on disk.
 
 ## Storage backends, queue and prefixes
 
-`GET/POST /api/storage/backends`, `PUT/DELETE /api/storage/backends/:id`,
+Every route is admin-only. `GET /api/storage/backends`, `POST /api/storage/backends`,
+`PUT /api/storage/backends/:id`, `DELETE /api/storage/backends/:id`,
 `POST /api/storage/backends/:id/test`, `PUT /api/storage/backends/:id/default`,
-`PUT /api/storage/backends/:id/enabled`, `GET /api/storage/queue` (S7-10).
-State the per-kind credential fields, that secrets are never echoed
-(`secret_set: true`), and the queue's claim/retry/`failed` semantics.
+`PUT /api/storage/backends/:id/enabled`, `POST /api/storage/backends/:id/prefixes?prefix=`,
+`POST /api/storage/backends/:id/requeue?kind=`, `GET /api/storage/queue` (S7-10).
+
+**Secrets have no path out.** The response carries `secret_set` and one flag per
+credential column (`password_set`, `access_key_set`, `secret_key_set`,
+`private_key_path_set`) and no secret field — not even `private_key_path`, because
+which key file an installation uses is information. A write that **omits** a
+secret keeps the stored one; a write that sends it **empty** clears it. The
+stored columns hold sealed text (AES-256-GCM, `storage/seal.go`), so a database
+backup is readable and a credential leak still needs the seal key.
+
+**Per-kind fields.** `s3`: `endpoint`, `bucket`, optional `region`, `prefix`,
+`access_key`, `secret_key`, `insecure_tls`. `webdav`: `endpoint` (a URL),
+`username`, `password`, `prefix` whose first segment is the container. `sftp`:
+`endpoint` (`host:22`), `username`, and either `password` or
+`private_key_path` — a path on the **server host** — plus `root_path`, which is
+what the writes stay inside. `fs`: `root_path` only (a local disk, an NFS mount,
+a compose volume); it has no endpoint. The API validates that the fields a kind
+needs are **present**; what an endpoint may look like is the driver's rule, and
+the test route carries that answer back. `kind` cannot change on an existing
+backend — the sealed columns mean something different per kind.
+
+**`POST …/test` answers `{"ok":true}` or**
+`{"ok":false,"error":"<name>","reason":"…"}`, where `<name>` is one of
+`discovery_unreachable`, `bad credentials`, `sftp host key changed`,
+`bucket missing` — the storage package's sentinel messages, verbatim, because
+those four are four different fixes. A refusal with no name among them answers
+`connection_failed` with the driver's sentence in `reason`; the case an
+installation actually hits is `the stored credential cannot be opened with this
+seal key`, which is not a tier state — the server and the credential may both be
+fine, and only this process cannot open the row.
+
+**`POST …/prefixes?prefix=`** is the Settings page's "verify this path": it asks
+the tier what is really under the prefix, capped at 500 keys with `truncated`.
+A prefix with nothing under it answers an empty list; a tier that is not mounted
+answers the named failure, because an empty list is exactly what a wrong prefix
+looks like.
+
+**`PUT …/enabled` with `{"enabled":false}`** is a pause, not a cancellation: new
+claims stop, the queue grows, and it resumes when the flag returns. Jobs already
+claimed finish — the claim is the gate. The response carries `is_default`, so the
+console can say "you just disabled the default destination" without a second
+request. `PUT …/default` refuses a disabled backend for the same reason.
+
+**`POST …/requeue?kind=segment|clip|snapshot`** re-shelves every `uploaded` row
+of that kind onto this backend — the answer to "we moved the tier" that does not
+require re-recording anything.
+
+**`GET /api/storage/queue?state=&limit=&offset=`** answers the queue oldest
+first, `limit` default 50 and clamped at 200, with `truncated` and `counts` (the
+totals for the whole queue, not the page). `state` is one of `pending`,
+`uploading`, `uploaded`, `failed`; anything else answers 400 rather than an empty
+page that reads as a healthy queue. Each row carries `attempts`, `last_error`,
+`next_attempt_at` and `backend_name`.
+
+**The queue's semantics**, stated where the console reads them: a job is claimed
+(`uploading`, `attempts + 1`), then either `uploaded` with its `remote_key`, or
+back to `pending` with `next_attempt_at = now + min(5min × 2^attempts, 6h)` — so
+10, 20, 40, 80, 160, 320 minutes and then 6 hours — and `failed` at 20 attempts.
+A failure no retry can fix (the local file is gone, the backend row is gone)
+stops at `failed` on the first attempt. `DELETE /api/storage/backends/:id` leaves
+the queue rows that point at it and reports how many, because "the queue is not
+moving" is a question whose answer is a number.
+
+Every backend write is a ledger row: `storage.backend_read`,
+`storage.backend_create`, `storage.backend_update`, `storage.backend_delete`,
+`storage.backend_default`, `storage.backend_enable`, `storage.backend_test`,
+`storage.backend_prefixes`, `storage.requeue`. The details name which secret
+columns a write addressed, never what they held.
 
 ## Webhooks
 

@@ -95,6 +95,16 @@ type Handlers struct {
 	// state expiry, ledger `created_at` — comes from here, so a test can move
 	// time instead of sleeping through it.
 	now func() time.Time
+
+	// sealKey opens the storage backend rows' sealed credentials. It is computed
+	// once, at construction, and carried here: `config.SealKey` warns when
+	// NVR_SECRET_KEY is unset, and a route that recomputed it per request would
+	// fill the log with the same warning on every Settings page load.
+	sealKey [32]byte
+	// sealErr is why the seal key could not be derived at all — an unparseable
+	// NVR_SECRET_KEY. The storage routes answer 500 with it rather than opening a
+	// backend with a key that cannot unseal the row they are about to read.
+	sealErr error
 }
 
 // ClipScheduler is the clip assembler as the signal path sees it: an event row
@@ -124,6 +134,11 @@ func NewHandlers(ctx context.Context, st *store.Store, jwtAuth *auth.JWTAuth, hu
 	}
 	if h.JWT == nil {
 		h.JWT = auth.NewJWTAuth(cfg.JWTSecret)
+	}
+	if key, err := cfg.SealKey(); err != nil {
+		h.sealErr = err
+	} else {
+		h.sealKey = key
 	}
 	h.OAuth = sso.NewOAuthHandler(st, h.JWT)
 	return h
@@ -187,6 +202,10 @@ func (h *Handlers) Register(r *gin.Engine) {
 	h.registerIdentityRoutes(admin)
 	h.registerUserRoutes(admin)
 	h.registerOIDCRoutes(admin)
+
+	// The storage surface (S7-10): the destinations, the connection test whose
+	// four answers the Settings page draws, and the queue the uploader walks.
+	h.registerStorageRoutes(admin)
 
 	// The detection worker's API. The gate is mounted so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, and the

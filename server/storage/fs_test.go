@@ -319,6 +319,50 @@ func TestFSListSkipsPartFilesAndStartsUnderThePrefix(t *testing.T) {
 	}
 }
 
+func TestFSListRefusesARootThatIsNotThere(t *testing.T) {
+	// The root and the prefix are different questions. An empty listing is what
+	// an unmounted tier looks like, and the Settings page's "verify this path"
+	// cannot tell "nothing here" from "nothing there" unless the driver says so.
+	// `Ping` refuses a missing root, `s3` refuses a missing bucket, and a listing
+	// that answered "no keys" would send the operator looking for footage that
+	// was never reachable.
+	missing := filepath.Join(t.TempDir(), "not-mounted")
+	row := &models.StorageBackend{
+		ID: "fs-9", Name: "unmounted", Kind: models.StorageKindFS, RootPath: missing, Enabled: true,
+	}
+	b, err := Open(context.Background(), row, sealKey(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+
+	for _, prefix := range []string{"", "nvr/front-door/"} {
+		keys, err := b.List(context.Background(), prefix)
+		if err == nil {
+			t.Errorf("List(%q) on an unmounted root answered %v with no error", prefix, keys)
+			continue
+		}
+		if storageCode := ErrorCode(err); storageCode != ErrBucketMissing.Error() {
+			t.Errorf("List(%q) failed with %q, want the named %q", prefix, storageCode, ErrBucketMissing.Error())
+		}
+	}
+
+	// A root that exists but is a file is the same refusal: it is not a tier.
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("not a directory"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fileRow := *row
+	fileRow.ID = "fs-10"
+	fileRow.RootPath = blocker
+	fileBackend, err := Open(context.Background(), &fileRow, sealKey(t))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := fileBackend.List(context.Background(), ""); ErrorCode(err) != ErrBucketMissing.Error() {
+		t.Errorf("a root that is a file listed with %v, want the named %q", err, ErrBucketMissing.Error())
+	}
+}
+
 func TestFSStatContentTypeComesFromTheKey(t *testing.T) {
 	b, _ := newFSBackend(t)
 	ctx := context.Background()

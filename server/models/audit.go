@@ -130,6 +130,14 @@ const (
 	AuditStorageEnable  = "storage.backend_enable"
 	AuditStorageTest    = "storage.backend_test"
 	AuditStorageRequeue = "storage.requeue"
+	// AuditStorageRead is the list, audited because the list is the surface an
+	// operator uses to find a credential they are about to rotate, and "who
+	// looked at the storage settings" is a question the ledger should answer.
+	AuditStorageRead = "storage.backend_read"
+	// AuditStoragePrefix is the Settings page's "verify this path": a read that
+	// reaches someone else's server, so it belongs in the ledger next to the
+	// connection test that does the same.
+	AuditStoragePrefix = "storage.backend_prefixes"
 
 	AuditWebhookCreate = "webhook.create"
 	AuditWebhookUpdate = "webhook.update"

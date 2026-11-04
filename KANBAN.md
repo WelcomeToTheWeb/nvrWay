@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 37 | 77 |
+| 0 | 0 | 2 | 36 | 78 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -46,12 +46,6 @@ _empty_
 | [`S6-06`](kanban/cards/S6-06.md) | webhooks/: signed delivery with 3 attempts + delivery rows | S1-11, S6-03 |
 | [`S6-07`](kanban/cards/S6-07.md) | Webhook settings routes (admin) + delivery history | S2-08, S6-06 |
 | [`S6-08`](kanban/cards/S6-08.md) | WS fan-out: event.new / event.update (throttled) / event.close | S2-10, S6-03 |
-
-### Step 7 — Storage backends, upload queue, retention
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S7-10`](kanban/cards/S7-10.md) | Storage API: backends CRUD, test, default, prefixes, queue | S2-08, S7-01, S7-02 |
 
 ### Step 8 — Web console
 
@@ -222,6 +216,7 @@ _empty_
 | [`S7-07`](kanban/cards/S7-07.md) | "Key layout: nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4, nvr/events/<id>/{clip,snapshot}" | S7-01 |
 | [`S7-08`](kanban/cards/S7-08.md) | "uploader.go: claim, upload, exponential retry, failed at 20, requeue, enable flag" | S7-01, S1-11 |
 | [`S7-09`](kanban/cards/S7-09.md) | "sweeper.go: the seven sweeps, with the un-uploaded protection window" | S1-11, S7-08 |
+| [`S7-10`](kanban/cards/S7-10.md) | "Storage API: backends CRUD, test, default, prefixes, queue" | S2-08, S7-01, S7-02 |
 
 ### Process — Repo mechanics
 
