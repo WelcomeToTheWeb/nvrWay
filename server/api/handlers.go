@@ -175,6 +175,11 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// actually happening, so its shape is an acceptance gate, not a convenience.
 	h.registerSegmentRoutes(r)
 
+	// The event surface (S6-02): the frame an event was detected on. The list,
+	// the detail, the delete and the clip land on the same group in S6-04 and
+	// S6-05; the read gate is already the one they all need.
+	h.registerEventRoutes(r)
+
 	// The admin surface: accounts, roles, the pending-identity queue and the
 	// ledger. The gate is the role check, and the denial is audited by the same
 	// middleware that answers it.

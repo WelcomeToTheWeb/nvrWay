@@ -344,7 +344,7 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 		TS:       now,
 	}
 
-	event, created, err := h.St.Events.UpsertByEventKey(c.Request.Context(), in)
+	event, _, err := h.St.Events.UpsertByEventKey(c.Request.Context(), in)
 	if errors.Is(err, store.ErrEventClosed) {
 		// 200, not 4xx: a worker re-sending a buffered signal has nothing left to
 		// retry, and a 4xx would tell it the ingest is broken.
@@ -361,9 +361,19 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 	reply.ID = event.ID
 	reply.Action = event.Action
 
-	if created && s.Action == models.SignalActionOpen && s.SnapshotBase64 != "" {
-		// The snapshot rides on the open alone, so this is its only chance to be
-		// written. A failure here costs the picture, never the event.
+	if s.Action == models.SignalActionOpen && s.SnapshotBase64 != "" && event.LocalSnapshotPath == "" {
+		// The snapshot rides on the open alone — an extend or a close never
+		// carries one — so this is its only chance to be written. Two details keep
+		// that rule true under a retry:
+		//
+		//   - the gate is "this row has no picture", not "this signal created the
+		//     row". A worker that re-sends an open whose picture the first attempt
+		//     lost — over the cap, a disk that refused the write — gets a second
+		//     chance, because the picture is still missing;
+		//   - a row that already has a picture is never overwritten, so a replay
+		//     cannot swap the frame that shows the trigger for a later one.
+		//
+		// A failure here costs the picture, never the event.
 		h.writeEventSnapshot(event.ID, s.SnapshotBase64)
 	}
 
@@ -421,12 +431,18 @@ func (h *Handlers) writeEventSnapshot(eventID, snapshotBase64 string) {
 		return
 	}
 
-	path := filepath.Join(h.Cfg.SnapshotsDir, eventID+".jpg")
+	// `Base` is not decoration: the name is built from the event id, and a name
+	// that escaped SNAPSHOTS_DIR would turn the snapshot route (S6-02) into a
+	// general file reader. The id is a server-minted UUID today; the guard is what
+	// keeps it that way if a row is ever restored from elsewhere.
+	path := filepath.Join(h.Cfg.SnapshotsDir, filepath.Base(eventID)+".jpg")
 	if err := os.MkdirAll(h.Cfg.SnapshotsDir, 0o755); err != nil {
 		log.Printf("events: snapshots dir %s could not be created: %v", h.Cfg.SnapshotsDir, err)
 		return
 	}
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
+	// 0o640, like the recorder's segments: these are pictures of someone's
+	// property, and the only reader is this process.
+	if err := os.WriteFile(path, raw, 0o640); err != nil {
 		log.Printf("events: snapshot for %s could not be written to %s: %v", eventID, path, err)
 		return
 	}
