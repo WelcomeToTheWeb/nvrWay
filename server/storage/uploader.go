@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -349,22 +350,34 @@ func (u *Uploader) deleteLocal(job *models.StorageJob) (string, int64, error) {
 	return job.RemoteKey, job.Bytes, nil
 }
 
-// deleteRemote is the sweeper's retention action.
+// deleteRemote is the sweeper's retention action, and the key it deletes is
+// `Target`, not `RemoteKey`.
+//
+// That is the model's own rule — "Target is the local path (upload) or the
+// remote key (delete)" — and the two handlers that already enqueue purges
+// (S3-03's camera delete, S6-04's event delete) fill `Target` with the key and
+// leave `RemoteKey` alone. A worker that read only `RemoteKey` would find it
+// empty on every purge those handlers queued and call the job permanently
+// failed. `RemoteKey` is kept as the fallback for a job the uploader itself
+// settled, where the key is the object's address rather than the thing to remove.
 func (u *Uploader) deleteRemote(ctx context.Context, job *models.StorageJob) (string, int64, error) {
-	if job.RemoteKey == "" {
-		// Nothing was ever uploaded, so there is nothing to delete — but the row
-		// asked, and a delete_remote on a job that never uploaded means the
-		// sweeper and the queue disagree. Say which.
+	key := job.Target
+	if key == "" {
+		key = job.RemoteKey
+	}
+	if key == "" {
+		// The row asked for a remote delete and cannot say where the object is.
+		// Retrying that twenty times is four days of agreeing with yourself.
 		return "", job.Bytes, fmt.Errorf("storage: a delete_remote job with no remote key: %w", errPermanent)
 	}
 	b, err := u.backendFor(job)
 	if err != nil {
-		return job.RemoteKey, job.Bytes, err
+		return key, job.Bytes, err
 	}
-	if err := b.Delete(ctx, job.RemoteKey); err != nil && !errors.Is(err, ErrNotFound) {
-		return job.RemoteKey, job.Bytes, fmt.Errorf("storage: deleting %s from the tier: %w", job.RemoteKey, err)
+	if err := b.Delete(ctx, key); err != nil && !errors.Is(err, ErrNotFound) {
+		return key, job.Bytes, fmt.Errorf("storage: deleting %s from the tier: %w", key, err)
 	}
-	return job.RemoteKey, job.Bytes, nil
+	return key, job.Bytes, nil
 }
 
 // backendFor opens the row the job names.
@@ -405,13 +418,25 @@ func (u *Uploader) keyFor(ctx context.Context, job *models.StorageJob) (string, 
 		}
 		ref.Slug, ref.When = slug, when
 	case models.JobKindClip, models.JobKindSnapshot:
-		// The job's id *is* the event's id: an object has one job row, and an
-		// event's media is addressed by its event.
-		ref.EventID = job.ID
+		ref.EventID = eventIDFromJobID(job.ID)
 	default:
 		return "", fmt.Errorf("storage: %q is not a storage job kind: %w", job.Kind, errPermanent)
 	}
 	return KeyFor(ref)
+}
+
+// eventIDFromJobID recovers the event from a job id.
+//
+// An event has two objects — its clip and its snapshot — and a job row is keyed
+// by its object, so the queue holds them as `<event_id>:clip` and
+// `<event_id>:snapshot`. That is the shape S3-03's camera purge and S6-04's
+// event delete already enqueue, and the key layout cannot use the job id
+// verbatim: `nvr/events/<id>:clip/clip.mp4` is not the plan's layout. A UUID has
+// no colon, so cutting at the first one recovers the event whether or not the
+// piece suffix is there.
+func eventIDFromJobID(id string) string {
+	eventID, _, _ := strings.Cut(id, ":")
+	return eventID
 }
 
 // jobContentType is the type the tier stores, derived from the job's kind rather

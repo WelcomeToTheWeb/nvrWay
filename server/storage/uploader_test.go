@@ -599,16 +599,17 @@ func TestUploaderRunsTheSweepersDeleteActions(t *testing.T) {
 	}
 
 	// delete_remote then takes it off the tier.
+	// The purge is enqueued the way S3-03's camera delete and S6-04's event
+	// delete enqueue it: `Target` carries the remote key, because for a delete
+	// the target *is* the thing to remove.
 	if err := f.st.StorageJobs.Enqueue(store.JobInput{
-		ID: f.segmentID, Kind: models.JobKindSegment, Target: f.target,
+		ID: f.segmentID, Kind: models.JobKindSegment, Target: uploaded.RemoteKey,
 		BackendID: f.row.ID, Action: models.JobActionDeleteRemote,
 	}); err != nil {
 		t.Fatalf("re-enqueue for the tier: %v", err)
 	}
-	// The re-enqueue kept the remote key, which is the whole point: the key is a
-	// fact about the object, and `delete_remote` is nothing without it.
-	if got := f.job(t, f.segmentID); got.RemoteKey != uploaded.RemoteKey {
-		t.Fatalf("re-enqueue dropped the remote key: %q, want %q", got.RemoteKey, uploaded.RemoteKey)
+	if got := f.job(t, f.segmentID); got.Target != uploaded.RemoteKey {
+		t.Fatalf("the purge job names %q, want the remote key", got.Target)
 	}
 	if _, err := f.u.Tick(context.Background()); err != nil {
 		t.Fatalf("delete_remote Tick: %v", err)
@@ -625,5 +626,78 @@ func TestUploaderNeedsAWorkerIDAndTheStores(t *testing.T) {
 	}
 	if _, err := NewUploader(nil, st.StorageJobs, nil, [32]byte{}, nil, UploaderOptions{WorkerID: "w"}); err == nil {
 		t.Fatal("an uploader with no backend store was accepted")
+	}
+}
+
+// TestUploaderDeleteRemoteFollowsThePurgeJobsTheAPIAlreadyEnqueues is the
+// integration half of the Target-is-the-key rule. The camera purge (S3-03) and
+// the event delete (S6-04) fill Target with the key and leave RemoteKey empty;
+// a worker that read only RemoteKey would fail every purge those handlers
+// queued, and the object would sit on the tier forever with nothing pointing at
+// it.
+func TestUploaderDeleteRemoteFollowsThePurgeJobsTheAPIAlreadyEnqueues(t *testing.T) {
+	f := newUploaderFixture(t)
+
+	key := "nvr/front-door/2026/11/04/front-door-0-7.mp4"
+	if err := os.MkdirAll(filepath.Join(f.tier, "nvr/front-door/2026/11/04"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(f.tier, filepath.FromSlash(key)), []byte(uploaderTestBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// The job exactly as the handler writes it: no RemoteKey, no upload first.
+	if err := f.st.StorageJobs.Enqueue(store.JobInput{
+		ID: f.segmentID, Kind: models.JobKindSegment, Target: key,
+		BackendID: f.row.ID, Action: models.JobActionDeleteRemote,
+	}); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if _, err := f.u.Tick(context.Background()); err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(f.tier, filepath.FromSlash(key))); !os.IsNotExist(err) {
+		t.Fatalf("the tier still holds %s after the purge job: %v", key, err)
+	}
+	if job := f.job(t, f.segmentID); job.State != models.JobStateUploaded {
+		t.Fatalf("the purge job is %q with %q, want it settled", job.State, job.LastError)
+	}
+}
+
+// TestUploaderKeysAnEventJobThatNamesItsPiece states the queue's id convention
+// against the layout. An event has two objects and a job row is keyed by its
+// object, so the queue holds `<event_id>:clip` and `<event_id>:snapshot` — and
+// the layout must still be nvr/events/<event_id>/clip.mp4, not a directory named
+// after the piece.
+func TestUploaderKeysAnEventJobThatNamesItsPiece(t *testing.T) {
+	f := newUploaderFixture(t)
+	eventID := "3f2b1c00-0000-4000-8000-0000000000aa"
+
+	for _, tc := range []struct {
+		jobID, kind, want string
+	}{
+		{eventID + ":clip", models.JobKindClip, "nvr/events/" + eventID + "/clip.mp4"},
+		{eventID + ":snapshot", models.JobKindSnapshot, "nvr/events/" + eventID + "/snapshot.jpg"},
+		{eventID, models.JobKindClip, "nvr/events/" + eventID + "/clip.mp4"},
+	} {
+		target := filepath.Join(filepath.Dir(f.target), strings.ReplaceAll(tc.jobID, ":", "-"))
+		if err := os.WriteFile(target, []byte("bytes"), 0o644); err != nil {
+			t.Fatalf("writing %s: %v", target, err)
+		}
+		if err := f.st.StorageJobs.Enqueue(store.JobInput{
+			ID: tc.jobID, Kind: tc.kind, Target: target,
+			BackendID: f.row.ID, Action: models.JobActionUpload, Bytes: 5,
+		}); err != nil {
+			t.Fatalf("enqueue %s: %v", tc.jobID, err)
+		}
+		if _, err := f.u.Tick(context.Background()); err != nil {
+			t.Fatalf("Tick %s: %v", tc.jobID, err)
+		}
+		if _, err := os.Stat(filepath.Join(f.tier, filepath.FromSlash(tc.want))); err != nil {
+			t.Errorf("%s landed wrong: %s is not on the tier: %v", tc.jobID, tc.want, err)
+		}
+		if job := f.job(t, tc.jobID); job.RemoteKey != tc.want {
+			t.Errorf("job %s recorded %q, want %q", tc.jobID, job.RemoteKey, tc.want)
+		}
 	}
 }

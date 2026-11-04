@@ -494,6 +494,78 @@ func (s *EventStore) stamp(id string, columns map[string]any) error {
 	return nil
 }
 
+// OverlapsWindow reports whether any live event's window covers part of
+// [from, to].
+//
+// Events reference segments by **time, not by a foreign key**: the clip builder
+// selects whatever segments cover an event's window (`ListRange`), so "is this
+// segment still referenced" can only be answered the same way. The caller passes
+// the window already widened by the clip's roll margins — a segment that only
+// the pre-roll reaches is still footage the clip is built from.
+func (s *EventStore) OverlapsWindow(cameraID string, from, to time.Time) (bool, error) {
+	var count int64
+	err := s.db.Model(&models.Event{}).
+		Where("camera_id = ? AND started_at <= ? AND ended_at >= ?", cameraID, to, from).
+		Limit(1).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ListOlderThan returns event rows started before the cutoff, oldest first, up
+// to limit. The sweeper's order: it purges an event's media and then deletes
+// that batch, so the batch has to terminate on its own and the oldest events are
+// the ones whose media is least likely to be wanted.
+func (s *EventStore) ListOlderThan(cutoff time.Time, limit int) ([]models.Event, error) {
+	if limit <= 0 || limit > EventListMaxLimit {
+		limit = EventListMaxLimit
+	}
+	var events []models.Event
+	err := s.db.Where("started_at < ?", cutoff).Order("started_at ASC, id ASC").
+		Limit(limit).Find(&events).Error
+	if err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+// DeleteByIDs removes event rows in one statement, after the caller has queued
+// their media purge. Counting the rows it actually removed is the point: a sweep
+// that reports a number the database did not achieve is a lie on the queue page.
+func (s *EventStore) DeleteByIDs(ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := s.db.Where("id IN ?", ids).Delete(&models.Event{})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
+// ClearRemoteMedia forgets that these events' clip and snapshot reached the
+// tier, once the sweeper has queued their delete_remote jobs. Clearing the
+// upload stamps is what makes the playback proxy stop promising a clip that is
+// on its way off the bucket: an event past remote retention is a record of what
+// happened, not something that plays.
+func (s *EventStore) ClearRemoteMedia(ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := s.db.Model(&models.Event{}).Where("id IN ?", ids).Updates(map[string]any{
+		"clip_key":             "",
+		"snapshot_key":         "",
+		"clip_uploaded_at":     nil,
+		"snapshot_uploaded_at": nil,
+		"updated_at":           time.Now().UTC(),
+	})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // Delete removes an event row. The handler enqueues the media purge jobs first
 // and audits the act; a row deleted out from under its media leaves files no
 // one is coming back for.

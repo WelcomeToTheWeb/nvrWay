@@ -238,6 +238,66 @@ func (s *SegmentStore) list(cutoff time.Time, uploaded bool, limit int) ([]model
 	return segments, nil
 }
 
+// ListPastRetention returns segments of **any** kind whose footage starts before
+// the cutoff, whether or not the local file is still here.
+//
+// The two retention lists above are continuous-only because the first sweep is
+// about the always-on recording. A segment written inside an event window
+// (`record_mode=events`) is in none of them, so without this query an
+// event-triggered installation would accumulate segment rows and files forever:
+// nothing would ever be coming back for them.
+func (s *SegmentStore) ListPastRetention(cutoff time.Time, limit int) ([]models.Segment, error) {
+	if limit <= 0 || limit > SegmentListMaxLimit {
+		limit = SegmentListMaxLimit
+	}
+	var segments []models.Segment
+	err := s.db.Where("start_ts < ?", cutoff).Order("start_ts ASC, id ASC").
+		Limit(limit).Find(&segments).Error
+	if err != nil {
+		return nil, err
+	}
+	return segments, nil
+}
+
+// ListRemoteOlderThan returns the segments the tier still holds — `remote_key`
+// set — whose footage starts before the cutoff: the remote sweep's candidates.
+// Rows the sweep has already queued a delete for are not in this set, because
+// the sweep clears the key as it queues, and a sweep that re-queues what it
+// already queued never finishes.
+func (s *SegmentStore) ListRemoteOlderThan(cutoff time.Time, limit int) ([]models.Segment, error) {
+	if limit <= 0 || limit > SegmentListMaxLimit {
+		limit = SegmentListMaxLimit
+	}
+	var segments []models.Segment
+	err := s.db.Where("remote_key <> '' AND start_ts < ?", cutoff).
+		Order("start_ts ASC, id ASC").Limit(limit).Find(&segments).Error
+	if err != nil {
+		return nil, err
+	}
+	return segments, nil
+}
+
+// ClearRemoteKeys forgets where the tier held these segments, once the sweeper
+// has queued their `delete_remote` jobs.
+//
+// `uploaded_at` is deliberately **not** cleared. It records that the footage did
+// reach the tier, which is what keeps the segment out of the un-uploaded
+// protection set; `remote_key` records where it is, and after the delete there is
+// no where. Clearing both would send a segment whose local file is still on disk
+// back into the "an upload outage is protecting this" set, and its local copy
+// would then be held for three times the retention window it already passed.
+func (s *SegmentStore) ClearRemoteKeys(ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := s.db.Model(&models.Segment{}).Where("id IN ?", ids).
+		Update("remote_key", "")
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
+}
+
 // DeleteByIDs removes segment rows. The caller deleted the files; the rows go
 // with them, in one statement, so a sweep cannot report a count it did not
 // achieve.
