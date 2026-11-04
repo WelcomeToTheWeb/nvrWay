@@ -198,7 +198,7 @@ func (f *fixture) addHook(t *testing.T, url string, mutate func(*models.Webhook)
 // the Settings page.
 func (f *fixture) deliveries(t *testing.T, webhookID string) []models.WebhookDelivery {
 	t.Helper()
-	rows, err := f.st.WebhookDeliveries.ListForWebhook(webhookID, 50)
+	rows, err := f.st.WebhookDeliveries.ListForWebhook(webhookID, "", 50, 0)
 	if err != nil {
 		t.Fatalf("read deliveries: %v", err)
 	}
@@ -647,6 +647,12 @@ func TestACancelledLadderRecordsNoAttemptThatNeverHappened(t *testing.T) {
 	hook := f.addHook(t, rec.server.URL, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
+	// The clock is frozen so the ladder's offsets always dominate the elapsed time.
+	// With the real clock and a millisecond ladder, a request that takes longer than
+	// the next offset leaves `wait` negative, and the loop correctly skips the sleep
+	// — which would run all three attempts and make this test about how fast the
+	// machine is.
+	f.d.Now = func() time.Time { return time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC) }
 	calls := 0
 	f.d.Sleep = func(context.Context, time.Duration) bool {
 		calls++

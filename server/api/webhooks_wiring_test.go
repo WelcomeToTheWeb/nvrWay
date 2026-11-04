@@ -181,7 +181,7 @@ func TestEventCloseIsTheOnlySignalThatNotifies(t *testing.T) {
 	}
 
 	// And the history shows the send, which is what the Settings page reads.
-	rows, err := f.Store.WebhookDeliveries.ListForWebhook(f.hook.ID, 10)
+	rows, err := f.Store.WebhookDeliveries.ListForWebhook(f.hook.ID, "", 10, 0)
 	if err != nil {
 		t.Fatalf("read deliveries: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestADisabledEndpointHearsNothingFromTheSignalPath(t *testing.T) {
 	if got := f.deliveries(); len(got) != 0 {
 		t.Errorf("a disabled endpoint received %d POSTs, want none", len(got))
 	}
-	if rows, err := f.Store.WebhookDeliveries.ListForWebhook(f.hook.ID, 10); err != nil {
+	if rows, err := f.Store.WebhookDeliveries.ListForWebhook(f.hook.ID, "", 10, 0); err != nil {
 		t.Fatalf("read deliveries: %v", err)
 	} else if len(rows) != 0 {
 		t.Errorf("a disabled endpoint left %d delivery rows, want none", len(rows))

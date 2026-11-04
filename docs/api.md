@@ -275,11 +275,32 @@ columns a write addressed, never what they held.
 
 ## Webhooks
 
-The settings routes (`GET/POST /api/settings/webhooks`,
-`PUT/DELETE /api/settings/webhooks/:id`, `POST /api/settings/webhooks/:id/test`,
-`GET /api/settings/webhooks/:id/deliveries`) are admin-only and are card S6-07.
-What is settled here is the delivery itself (S6-06), because that is the half a
-receiver is written against.
+Every route is admin-only (S6-07):
+
+```
+GET    /api/settings/webhooks
+POST   /api/settings/webhooks
+PUT    /api/settings/webhooks/:id
+DELETE /api/settings/webhooks/:id
+GET    /api/settings/webhooks/:id/deliveries?status=&limit=&offset=
+```
+
+The signing secret is write-only: the response carries `secret_set: true` and the
+secret's bytes appear in no response — not in an error message either. An omitted
+`secret` on a PUT keeps the stored one (the console can never send it back); an
+explicitly empty `"secret": ""` clears it, and the ledger records the removal.
+
+A write that is refused is a ledger row too, with the reason in its details.
+
+The route refuses an endpoint that would save cleanly and then hear nothing: no name,
+no URL, a URL that is not http/https or has no host, a URL carrying `user:pass`, an
+empty `events` list, a trigger this build never sends, and a `camera_id` that names no
+camera. Each is a 422 naming the field.
+
+There is no "send a test notification" route in v1, deliberately: a test delivery
+would land in the same history the operator is reading to answer "why did my hook
+fail", and the payload shape for an event that never happened is a contract the plan
+does not settle.
 
 ### The trigger, and who receives it
 
@@ -365,23 +386,32 @@ row is written; an endpoint that is down does not hold it open.
 
 ### The delivery history
 
-Every attempt is one `webhook_deliveries` row, written when the attempt ends:
+Every attempt is one `webhook_deliveries` row, written when the attempt ends. The
+history route returns them newest first, with the endpoint inline, and `status=failed`
+is the filter the question asks for:
 
 | Field | Meaning |
 | --- | --- |
 | `webhook_id` | the endpoint |
 | `event` | the trigger, `event.close` |
-| `payload` | the exact bytes that were sent, so the operator can replay them |
+| `payload` | the exact bytes that were sent, as a JSON object, so the console can answer "what did we send it" without a second request |
 | `attempt` | 1, 2 or 3 |
 | `status` | `delivered` or `failed` |
 | `status_code` | the HTTP status, or 0 when there was no response |
 | `error` | empty on success; otherwise the sentence — including the receiver's own words, capped at 200 bytes |
 | `delivered_at` | set only on the attempt that worked |
 
+`limit` defaults to 50 and is capped at 200; `offset` pages; `truncated` is a fact
+rather than a guess (the route asks for one row more than it shows). The order carries
+an `id` tiebreaker because two attempts of one delivery can land in the same
+millisecond, and an offset page over a tie that the database resolves differently per
+query skips a row on one page and repeats it on the next.
+
 An attempt that never happened gets no row: a process that shuts down between attempts
 records the sends it made and nothing else. The endpoint row also carries
 `last_error` and `last_delivered_at`, which is how the Settings page answers "is this
-webhook working" without reading the history.
+webhook working" without reading the history. Deleting an endpoint deletes its history
+with it and reports how many rows went along.
 
 Rows are pruned after 30 days by the retention sweep (S7-09, sweep 5).
 

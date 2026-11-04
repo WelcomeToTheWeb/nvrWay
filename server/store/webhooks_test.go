@@ -193,7 +193,7 @@ func TestWebhookDeliveryRowsAreTheAttemptSequence(t *testing.T) {
 		}
 	}
 
-	rows, err := st.WebhookDeliveries.ListForWebhook(hook.ID, 10)
+	rows, err := st.WebhookDeliveries.ListForWebhook(hook.ID, "", 10, 0)
 	if err != nil {
 		t.Fatalf("list deliveries: %v", err)
 	}

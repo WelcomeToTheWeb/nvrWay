@@ -215,6 +215,10 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// four answers the Settings page draws, and the queue the uploader walks.
 	h.registerStorageRoutes(admin)
 
+	// The webhook surface (S6-07): the endpoints that receive event closes, and
+	// the attempt history that answers why one is not arriving.
+	h.registerWebhookRoutes(admin)
+
 	// The detection worker's API. The gate is mounted so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, and the
 	// two routes the worker polls and posts to are mounted behind it (S5-10).

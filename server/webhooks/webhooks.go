@@ -63,7 +63,13 @@ const (
 //
 // The offsets are measured from the trigger, not from the previous attempt, so a
 // slow endpoint (one that answers at 9 s) still gets its second attempt at the 10 s
-// mark rather than at 19 s. The ladder is short on purpose: a webhook endpoint is
+// mark rather than at 19 s. It also means an attempt that *overruns* its slot — one
+// that times out at 10 s, past the 10 s mark — is followed immediately rather than
+// held back: the schedule is a set of times, not a fixed gap, and a receiver that
+// stalled the first attempt gets the second as soon as this process is free to send
+// it.
+//
+// The ladder is short on purpose: a webhook endpoint is
 // usually a LAN automation host that is either up or restarting for a few seconds,
 // and the whole ladder spans 72 s. The upload queue's 20 attempts over four and a
 // half days is where stopping early mattered; here, running the ladder every time

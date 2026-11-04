@@ -21,6 +21,21 @@ func JSONStringList(raw string) []string {
 	return out
 }
 
+// JSONStringListToJSON encodes a string slice for a JSON text column — the writer
+// that pairs with JSONStringList. A nil slice becomes `[]` rather than `null`: every
+// reader tolerates both, and `[]` is what a column written by this release looks
+// like, which keeps a dump of the database readable by eye.
+func JSONStringListToJSON(items []string) string {
+	if items == nil {
+		items = []string{}
+	}
+	encoded, err := json.Marshal(items)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
+
 // JSONStringMap decodes a JSON object column into a map, same tolerance.
 func JSONStringMap(raw string) map[string]string {
 	trimmed := strings.TrimSpace(raw)

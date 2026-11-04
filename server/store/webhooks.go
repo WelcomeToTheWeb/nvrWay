@@ -148,20 +148,55 @@ func (s *WebhookDeliveryStore) Create(d *models.WebhookDelivery) error {
 	return s.db.Create(d).Error
 }
 
-// ListForWebhook returns an endpoint's recent attempts, newest first.
-func (s *WebhookDeliveryStore) ListForWebhook(webhookID string, limit int) ([]models.WebhookDelivery, error) {
+// ListForWebhook returns one endpoint's attempts, newest first.
+//
+// `status` narrows the answer to the attempts that failed, or the ones that
+// succeeded; empty is every attempt. The console's question is "why did my hook
+// fail", and the answer is the sequence of attempts rather than the last one.
+//
+// `limit` is clamped, and the clamp sits *above* the highest limit the API asks for
+// on purpose: the route asks for one row more than it shows so it can say
+// `truncated: true` honestly, and a clamp at the API's own ceiling would answer
+// "there is nothing more" exactly at the point where there is.
+//
+// The `id` tiebreaker is not decoration. Two attempts of one delivery can land in the
+// same millisecond (the ladder's first waits are milliseconds), and an offset page
+// over a tie that the database resolves differently per query skips a row on one page
+// and repeats it on the next.
+func (s *WebhookDeliveryStore) ListForWebhook(webhookID, status string, limit, offset int) ([]models.WebhookDelivery, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	if limit > 200 {
-		limit = 200
+	if limit > 500 {
+		limit = 500
 	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	q := s.db.Where("webhook_id = ?", webhookID)
+	if status != "" {
+		q = q.Where("status = ?", status)
+	}
+
 	var deliveries []models.WebhookDelivery
-	if err := s.db.Where("webhook_id = ?", webhookID).
-		Order("created_at DESC").Limit(limit).Find(&deliveries).Error; err != nil {
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).
+		Find(&deliveries).Error; err != nil {
 		return nil, err
 	}
 	return deliveries, nil
+}
+
+// CountForWebhook is how many attempts an endpoint has. The delete route reports it,
+// because the history goes with the endpoint and an operator who just deleted one is
+// entitled to know how much of it went with it.
+func (s *WebhookDeliveryStore) CountForWebhook(webhookID string) (int64, error) {
+	var n int64
+	if err := s.db.Model(&models.WebhookDelivery{}).Where("webhook_id = ?", webhookID).
+		Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 // PruneOlderThan deletes delivery rows past a window. The delivery log is a

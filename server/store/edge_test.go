@@ -445,21 +445,21 @@ func TestWebhookDeliveryListHonoursTheLimit(t *testing.T) {
 		}
 	}
 
-	rows, err := st.WebhookDeliveries.ListForWebhook(hook.ID, 3)
+	rows, err := st.WebhookDeliveries.ListForWebhook(hook.ID, "", 3, 0)
 	if err != nil {
 		t.Fatalf("list deliveries: %v", err)
 	}
 	if len(rows) != 3 {
 		t.Fatalf("expected the panel's page of three, got %d", len(rows))
 	}
-	all, err := st.WebhookDeliveries.ListForWebhook(hook.ID, 0)
+	all, err := st.WebhookDeliveries.ListForWebhook(hook.ID, "", 500, 0)
 	if err != nil {
 		t.Fatalf("list deliveries: %v", err)
 	}
 	if len(all) != 5 {
 		t.Fatalf("expected every attempt kept, got %d", len(all))
 	}
-	if _, err := st.WebhookDeliveries.ListForWebhook("2f7a2a2a-0000-0000-0000-000000000000", 10); err != nil {
+	if _, err := st.WebhookDeliveries.ListForWebhook("2f7a2a2a-0000-0000-0000-000000000000", "", 10, 0); err != nil {
 		t.Fatalf("an endpoint with no history has an empty history, not an error: %v", err)
 	}
 }
