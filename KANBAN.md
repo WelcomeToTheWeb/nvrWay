@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 46 | 67 |
+| 0 | 0 | 2 | 46 | 68 |
 
-Total cards: **115**. In Progress limit: **2**.
+Total cards: **116**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S6-04`](kanban/cards/S6-04.md) | Event API: list filters, detail, delete, snapshot, clip | S2-08, S6-01, S6-02 |
 | [`S6-05`](kanban/cards/S6-05.md) | Clip delivery: local Range/206, remote streamed from byte 0 | S6-04, S7-01 |
 | [`S6-06`](kanban/cards/S6-06.md) | webhooks/: signed delivery with 3 attempts + delivery rows | S1-11, S6-03 |
 | [`S6-07`](kanban/cards/S6-07.md) | Webhook settings routes (admin) + delivery history | S2-08, S6-06 |
@@ -118,6 +117,7 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
+| [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
 
 ## Done
 
@@ -216,6 +216,7 @@ _empty_
 | [`S6-01`](kanban/cards/S6-01.md) | clips.go: windowed concat with padding + the empty-window rule | S1-10, S4-03, S2-10 |
 | [`S6-02`](kanban/cards/S6-02.md) | Snapshot write: decode signal snapshot_base64 to <SNAPSHOTS_DIR>/<event_id>.jpg | S5-10, S6-03 |
 | [`S6-03`](kanban/cards/S6-03.md) | Event upsert semantics: open/extend/close on the server clock | S1-10 |
+| [`S6-04`](kanban/cards/S6-04.md) | Event API: list filters, detail, delete, snapshot, clip | S2-08, S6-01, S6-02 |
 
 ### Process — Repo mechanics
 

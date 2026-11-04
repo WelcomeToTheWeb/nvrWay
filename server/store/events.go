@@ -324,8 +324,15 @@ type EventFilter struct {
 	ZoneID   string
 	Severity *int
 	// Q matches class, zone and rule names inside the row's JSON columns.
-	Q     string
-	Limit int
+	Q string
+	// QZoneIDs are the zone **ids** whose **name** matched Q. The row stores ids
+	// (`zones_json` is the union of the zone ids that contributed), so a search
+	// for a zone called "porch" reaches the row only through the ids that name
+	// it — and the id↔name pair lives on the camera row, which is why the
+	// handler resolves it and hands the ids here (S6-04). An empty list leaves
+	// `q` matching classes, ids and rules as it did before.
+	QZoneIDs []string
+	Limit    int
 	// OpenOnly is the clip builder's query: live events need their clip
 	// scheduled at close.
 	OpenOnly bool
@@ -376,8 +383,19 @@ func (s *EventStore) List(f EventFilter, offset int) ([]models.Event, error) {
 	}
 	if q := strings.TrimSpace(f.Q); q != "" {
 		like := "%" + escapeLike(q) + "%"
-		query = query.Where("classes_json LIKE ? ESCAPE '\\' OR zones_json LIKE ? ESCAPE '\\' OR rules_json LIKE ? ESCAPE '\\'",
-			like, like, like)
+		clause := "classes_json LIKE ? ESCAPE '\\' OR zones_json LIKE ? ESCAPE '\\' OR rules_json LIKE ? ESCAPE '\\'"
+		args := []any{like, like, like}
+		for _, zoneID := range f.QZoneIDs {
+			if zoneID == "" {
+				continue
+			}
+			clause += " OR zones_json LIKE ? ESCAPE '\\'"
+			args = append(args, "%"+escapeLike(zoneID)+"%")
+		}
+		// Parenthesized by hand. GORM joins separate `Where` calls with `AND`, and
+		// an unparenthesized `a = ? AND x OR y` reads as `(a AND x) OR y` — which
+		// would let one camera's zone match answer for every camera in the table.
+		query = query.Where("("+clause+")", args...)
 	}
 
 	var events []models.Event
