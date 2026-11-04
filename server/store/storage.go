@@ -243,16 +243,23 @@ func (s *StorageJobStore) Enqueue(in JobInput) error {
 	return s.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"kind":            job.Kind,
-			"target":          job.Target,
-			"backend_id":      job.BackendID,
-			"action":          job.Action,
-			"state":           job.State,
-			"attempts":        0,
-			"worker_id":       "",
-			"last_error":      "",
-			"bytes":           job.Bytes,
-			"remote_key":      "",
+			"kind":       job.Kind,
+			"target":     job.Target,
+			"backend_id": job.BackendID,
+			"action":     job.Action,
+			"state":      job.State,
+			"attempts":   0,
+			"worker_id":  "",
+			"last_error": "",
+			"bytes":      job.Bytes,
+			// `remote_key` is deliberately **not** reset here. It is a fact about
+			// the object, not about the obligation: once the bytes have reached
+			// the tier the object has an address there, and the next action —
+			// `delete_local`, then `delete_remote` — is meaningless without it.
+			// Clearing it on re-enqueue would make the sweeper's own chain
+			// self-defeating, and the row would say "uploaded, address unknown".
+			// `Requeue` below *does* clear it, because moving an object to a
+			// different backend really does invalidate the address.
 			"next_attempt_at": now,
 			"updated_at":      now,
 		}),
@@ -459,6 +466,26 @@ func (s *StorageJobStore) MarkRetry(id, lastError string, nextAttempt time.Time)
 		"next_attempt_at": nextAttempt,
 		"updated_at":      time.Now().UTC(),
 	}).Error
+}
+
+// MarkFailed stops a job now rather than at JobMaxAttempts, for the failures a
+// retry cannot fix: the local file is gone, the backend row is gone, the job
+// names an action no worker implements. Left in `pending` such a job would be
+// retried for days and would keep the queue's `pending` number moving, which is
+// the number an operator watches to tell whether the tier is healthy.
+func (s *StorageJobStore) MarkFailed(id, lastError string) error {
+	result := s.db.Model(&models.StorageJob{}).Where("id = ?", id).Updates(map[string]any{
+		"state":      models.JobStateFailed,
+		"last_error": lastError,
+		"updated_at": time.Now().UTC(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // Requeue re-shelves every uploaded object of a kind onto another backend: the
