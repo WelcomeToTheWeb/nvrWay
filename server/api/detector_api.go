@@ -373,6 +373,15 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 		h.Recorder.OpenWindow(cam.ID)
 	}
 
+	if h.Clips != nil {
+		// S6-01: every applied signal re-states the clip's deadline. An open event
+		// gets one armed assembly (the ceiling, so a worker that dies without a
+		// close still gets a clip); the close cancels that one and arms the real
+		// one at `ended_at + POST_ROLL_SECONDS`, which is when the footage the
+		// clip needs is all on disk.
+		h.Clips.Schedule(event)
+	}
+
 	return reply, ""
 }
 

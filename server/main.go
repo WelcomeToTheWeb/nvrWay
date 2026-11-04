@@ -127,6 +127,22 @@ func main() {
 	log.Printf("Recorder: supervising %d camera row(s); segments are %ds; ffmpeg children are owned by this process",
 		countCameraRows(st), cfg.SegmentSeconds)
 
+	// Step 6 (S6-01): the clip assembler, in the plan's boot order — after the
+	// recorder that writes the footage it cuts from, before the API that reports
+	// what it produced. It takes the same lifecycle context: an assembly is a
+	// short-lived ffmpeg, and a shutdown that cancels the context stops the cut
+	// instead of leaving a child writing a file nobody filed.
+	//
+	// Nothing is awaited here. An event whose window has no footage is a clip that
+	// never arrives, stated in the log and on the row, and a server does not stop
+	// serving because a clip is missing.
+	clips := media.NewClipBuilder(cfg, st)
+	handlers.Clips = clips
+	go clips.Run(ctx)
+	defer clips.Close()
+	log.Printf("Clip builder: assembling into %s, armed %ds after an event's last signal (pre-roll %ds, post-roll %ds, event max %ds)",
+		cfg.ClipsDir, cfg.PostRollSeconds, cfg.PreRollSeconds, cfg.PostRollSeconds, cfg.EventMaxSeconds)
+
 	srv := &http.Server{
 		Addr:    cfg.ServerPort,
 		Handler: router,

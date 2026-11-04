@@ -79,6 +79,13 @@ type Handlers struct {
 	// owned by the process, not one per request path.
 	Recorder *media.Recorder
 
+	// Clips is the clip assembler (S6-01). Like the recorder it is one object
+	// owned by the process — it holds the armed assemblies, and one per event is
+	// the whole point — so the signal path schedules onto it instead of building
+	// one per request. nil means the process has no assembler: signals file
+	// events, and the clips are simply never cut.
+	Clips ClipScheduler
+
 	// states is the server-side half of an SSO login in flight: the state value
 	// the redirect issued, with the nonce and PKCE verifier only this process
 	// knows. Short-lived and single-use (S2-07).
@@ -88,6 +95,18 @@ type Handlers struct {
 	// state expiry, ledger `created_at` — comes from here, so a test can move
 	// time instead of sleeping through it.
 	now func() time.Time
+}
+
+// ClipScheduler is the clip assembler as the signal path sees it: an event row
+// just moved, and something has to remember to cut its clip once the post-roll
+// is spent. `*media.ClipBuilder` implements it; a suite hands in a spy, because
+// the deliverable here is *the call*, not an ffmpeg run.
+type ClipScheduler interface {
+	// Schedule arms (or re-arms) one event's assembly: the open ceiling while the
+	// event is open, the post-roll deadline once it closes.
+	Schedule(ev *models.Event)
+	// Cancel disarms a pending assembly — the delete path's need (S6-04).
+	Cancel(eventID string)
 }
 
 // NewHandlers builds the handler set. Passing a nil jwtAuth is not a hole: the

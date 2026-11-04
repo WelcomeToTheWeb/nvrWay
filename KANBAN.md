@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 48 | 65 |
+| 0 | 0 | 2 | 47 | 66 |
 
 Total cards: **115**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S6-01`](kanban/cards/S6-01.md) | clips.go: windowed concat with padding + the empty-window rule | S1-10, S4-03, S2-10 |
 | [`S6-02`](kanban/cards/S6-02.md) | Snapshot write: decode signal snapshot_base64 to <SNAPSHOTS_DIR>/<event_id>.jpg | S5-10, S6-03 |
 | [`S6-04`](kanban/cards/S6-04.md) | Event API: list filters, detail, delete, snapshot, clip | S2-08, S6-01, S6-02 |
 | [`S6-05`](kanban/cards/S6-05.md) | Clip delivery: local Range/206, remote streamed from byte 0 | S6-04, S7-01 |
@@ -215,6 +214,7 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
+| [`S6-01`](kanban/cards/S6-01.md) | clips.go: windowed concat with padding + the empty-window rule | S1-10, S4-03, S2-10 |
 | [`S6-03`](kanban/cards/S6-03.md) | Event upsert semantics: open/extend/close on the server clock | S1-10 |
 
 ### Process — Repo mechanics
