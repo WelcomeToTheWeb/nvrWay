@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 40 | 74 |
+| 0 | 0 | 2 | 39 | 75 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -51,7 +51,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S7-07`](kanban/cards/S7-07.md) | Key layout: nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4, nvr/events/<id>/{clip,snapshot} | S7-01 |
 | [`S7-08`](kanban/cards/S7-08.md) | uploader.go: claim, upload, exponential retry, failed at 20, requeue, enable flag | S7-01, S1-11 |
 | [`S7-09`](kanban/cards/S7-09.md) | sweeper.go: the seven sweeps, with the un-uploaded protection window | S1-11, S7-08 |
 | [`S7-10`](kanban/cards/S7-10.md) | Storage API: backends CRUD, test, default, prefixes, queue | S2-08, S7-01, S7-02 |
@@ -222,6 +221,7 @@ _empty_
 | [`S7-04`](kanban/cards/S7-04.md) | s3.go: minio-go driver, path-style always | S7-01, S7-02 |
 | [`S7-05`](kanban/cards/S7-05.md) | webdav.go: gowebdav driver over the PROPFIND subset | S7-01, S7-02 |
 | [`S7-06`](kanban/cards/S7-06.md) | sftp.go: password/key auth + host-key pinning | S7-01, S7-02 |
+| [`S7-07`](kanban/cards/S7-07.md) | "Key layout: nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4, nvr/events/<id>/{clip,snapshot}" | S7-01 |
 
 ### Process — Repo mechanics
 
