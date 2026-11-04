@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 46 | 68 |
+| 0 | 0 | 2 | 45 | 69 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -52,7 +52,6 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S7-01`](kanban/cards/S7-01.md) | storage.go: Backend interface + Open dispatch (+ OpenDefault) | S1-04, S1-11, S7-02 |
-| [`S7-02`](kanban/cards/S7-02.md) | seal.go: AES-256-GCM secret sealing keyed by SHA-256(NVR_SECRET_KEY) | S1-04 |
 | [`S7-03`](kanban/cards/S7-03.md) | fs.go: local dir / NFS mount with .part + rename | S7-01 |
 | [`S7-04`](kanban/cards/S7-04.md) | s3.go: minio-go driver, path-style always | S7-01, S7-02 |
 | [`S7-05`](kanban/cards/S7-05.md) | webdav.go: gowebdav driver over the PROPFIND subset | S7-01, S7-02 |
@@ -217,6 +216,12 @@ _empty_
 | [`S6-02`](kanban/cards/S6-02.md) | Snapshot write: decode signal snapshot_base64 to <SNAPSHOTS_DIR>/<event_id>.jpg | S5-10, S6-03 |
 | [`S6-03`](kanban/cards/S6-03.md) | Event upsert semantics: open/extend/close on the server clock | S1-10 |
 | [`S6-04`](kanban/cards/S6-04.md) | Event API: list filters, detail, delete, snapshot, clip | S2-08, S6-01, S6-02 |
+
+### Step 7 — Storage backends, upload queue, retention
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S7-02`](kanban/cards/S7-02.md) | seal.go: AES-256-GCM secret sealing keyed by SHA-256(NVR_SECRET_KEY) | S1-04 |
 
 ### Process — Repo mechanics
 

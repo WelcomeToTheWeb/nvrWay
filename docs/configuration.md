@@ -74,7 +74,35 @@ tier it lives beside.
 
 | Env | Default | Meaning |
 |---|---|---|
-| `NVR_SECRET_KEY` | empty → derived from `JWT_SECRET` | 64 hex chars sealing storage-backend credentials (AES-256-GCM). **Required in production**: a deployment with `NVR_SECRET_KEY` set has one secret to back up, and sealing is stable across restarts. |
+| `NVR_SECRET_KEY` | empty → derived from `JWT_SECRET` | 64 hex chars sealing storage-backend credentials and webhook signing secrets (AES-256-GCM). **Required in production**: a deployment with `NVR_SECRET_KEY` set has one secret to back up, and sealing is stable across restarts. |
+
+### What sealing does, and what losing the key costs
+
+Every credential the server stores — a storage backend's password, access key,
+secret key and private-key path, and a webhook's signing secret — is written to
+the database sealed, never as plaintext. The format is
+`base64(nonce‖AES-256-GCM(ciphertext)‖tag)` under a key that is
+`unhexlify(NVR_SECRET_KEY)`, or `SHA-256(JWT_SECRET)` when it is unset
+(`server/storage/seal.go`).
+
+Three consequences an operator should know before they need them:
+
+- **A database backup is readable and not a credential leak.** Restoring it
+  onto a host with the same `NVR_SECRET_KEY` restores every backend. Restoring
+  it onto one without it leaves every row present and every credential
+  unopenable: the server logs the failure per backend and the Settings page
+  shows `secret_set: true` next to a connection test that says so.
+- **Losing `NVR_SECRET_KEY` means retyping the credentials**, not losing the
+  footage. Set it on the first boot, and back it up with `JWT_SECRET`.
+- **Deriving it from `JWT_SECRET` is the convenience default, and it has a
+  date on it.** Rotating `JWT_SECRET` on a deployment that never set
+  `NVR_SECRET_KEY` re-keys the seal and orphans every stored credential. That
+  is why the boot warns.
+
+No endpoint ever returns a sealed value. The response field that says a
+credential is present is `secret_set: true`, and a write that omits the field
+leaves the stored credential alone — the console cannot read it back, so it
+must not have to send it back.
 
 ## Generating the secrets
 
