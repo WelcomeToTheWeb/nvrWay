@@ -32,6 +32,10 @@ import (
 // without colliding with the real ones.
 const fakeKind = "test-fake-tier"
 
+// fakeBrokenKind is the kind whose driver refuses, for the test that checks what
+// Open does with a driver's failure.
+const fakeBrokenKind = "test-fake-broken"
+
 // fakeBackend records the calls made through the interface, so the contract the
 // rest of the package relies on is asserted rather than assumed.
 type fakeBackend struct {
@@ -103,6 +107,12 @@ func init() {
 		lastFake = a
 		lastFakeBackend = &fakeBackend{}
 		return lastFakeBackend, nil
+	})
+	// Registered here rather than in the test that uses it, because the registry
+	// panics on a duplicate and a test body runs again under `go test -count=2`
+	// while an init() does not.
+	registerDriver(fakeBrokenKind, func(ctx context.Context, a *openArgs) (Backend, error) {
+		return nil, fmt.Errorf("dial refused: %w", ErrUnreachable)
 	})
 }
 
@@ -298,13 +308,11 @@ func TestUnsealOpensOnlyWhatTheKindReads(t *testing.T) {
 func TestOpenFailureNamesTheBackendAndNeverTheCredential(t *testing.T) {
 	key := sealKey(t)
 
-	// A driver that refuses, wrapping one of the four names.
-	registerDriver("test-fake-broken", func(ctx context.Context, a *openArgs) (Backend, error) {
-		return nil, fmt.Errorf("dial refused: %w", ErrUnreachable)
-	})
-
+	// A driver that refuses, wrapping one of the four names. It is registered in
+	// init() above: the registry panics on a duplicate, and a test body runs more
+	// than once under `go test -count=2`.
 	row := &models.StorageBackend{
-		ID: "b3", Name: "minio-prod", Kind: "test-fake-broken",
+		ID: "b3", Name: "minio-prod", Kind: fakeBrokenKind,
 		SecretKey: mustSeal(t, "the-actual-secret-value", key),
 	}
 	_, err := Open(context.Background(), row, key)
