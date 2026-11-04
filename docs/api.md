@@ -275,10 +275,115 @@ columns a write addressed, never what they held.
 
 ## Webhooks
 
-`GET/POST /api/settings/webhooks`, `PUT/DELETE /api/settings/webhooks/:id`,
-`POST /api/settings/webhooks/:id/test`, `GET /api/settings/webhooks/:id/deliveries`
-(S6-07). State the payload, the `X-NVR-Signature` HMAC, the 3 attempts with
-backoff, and the delivery row shape.
+The settings routes (`GET/POST /api/settings/webhooks`,
+`PUT/DELETE /api/settings/webhooks/:id`, `POST /api/settings/webhooks/:id/test`,
+`GET /api/settings/webhooks/:id/deliveries`) are admin-only and are card S6-07.
+What is settled here is the delivery itself (S6-06), because that is the half a
+receiver is written against.
+
+### The trigger, and who receives it
+
+v1 sends one trigger: **`event.close`**. An event that is still moving is not a fact
+anyone should be notified about yet, so `open` and `extend` send nothing.
+
+An endpoint receives a close when three things are true: it is `enabled`, its
+`camera_id` is empty (every camera) or equal to the event's camera, and its `events`
+list contains `event.close`. An endpoint that fails any of those gets **no request at
+all** — not a request it is told to ignore.
+
+### The payload
+
+The body is one JSON object, in this field order:
+
+```json
+{
+  "id": "<event id>",
+  "camera_id": "<camera id>",
+  "camera_slug": "front-door",
+  "started_at": "2026-11-04T09:15:03.400Z",
+  "ended_at": "2026-11-04T09:15:45.400Z",
+  "seconds": 42,
+  "classes": ["person"],
+  "zones": ["front step"],
+  "rules": ["loiter"],
+  "severity": 3,
+  "snapshot_url": "http://192.168.1.20:8080/api/v1/events/<id>/snapshot",
+  "clip_url": "http://192.168.1.20:8080/api/v1/events/<id>/clip"
+}
+```
+
+- **Timestamps are UTC with milliseconds**, the same layout the API's own event view
+  uses, so a receiver that reads a webhook and then asks the API sees one shape.
+- **`zones` carries the names the operator typed**, not the row's zone ids: a
+  receiver has never seen this installation's ids, and the camera row holds the pair.
+  A zone deleted after the event keeps its id.
+- **The two URLs are the server's own routes**, never a path on its disk and never a
+  tier address. They are built from `PUBLIC_BASE_URL` (see `docs/configuration.md`);
+  a base with a path prefix keeps it, so a reverse proxy at `/nvr` hands out URLs its
+  receivers can fetch.
+- **`snapshot_url` is empty when there is no picture.** The frame is written on the
+  open, so by the close an empty field is a fact, and the receiver branches on the
+  field instead of fetching a 404.
+- **`clip_url` is empty only for a camera in `record_mode=off`.** For every other
+  camera the clip is assembled *after* the close (at `ended_at + POST_ROLL_SECONDS`),
+  so the URL is an address that becomes a video a few seconds later. A receiver that
+  fetches it immediately and gets `{"error":"clip not available"}` should ask again.
+- The signing secret is never in the body.
+
+### The signature
+
+```
+X-NVR-Signature: sha256=<hex(HMAC-SHA256(secret, raw body))>
+User-Agent: nvr/1
+Content-Type: application/json
+```
+
+The HMAC is over the **bytes of the request body**, computed once per event and
+reused unchanged on every attempt, so a receiver that verified the first attempt can
+verify the third. Recompute it over the raw body before parsing: a decoded-then-
+remarshalled copy can differ in field order or number formatting.
+
+Three states where the header is **absent**, each meaning something different:
+
+| State | Why no header |
+| --- | --- |
+| The endpoint's secret is empty | there is nothing to sign with, and a signature under an empty key would look like one that means something |
+| The stored secret is not a sealed value | a row written before sealing existed, or inserted by hand: it is used as written, and the log says so |
+| The stored secret cannot be opened | `NVR_SECRET_KEY` changed. Signing the sealed text would produce a signature that verifies nowhere, and a *bad* signature sends the operator to the endpoint instead of to the key |
+
+### The attempts
+
+Three, at **2 s, 10 s and 60 s after the close** — measured from the close, not from
+the previous attempt, so a receiver that answers slowly does not push the whole
+ladder back. Any 2xx stops it; a connection failure, a timeout (10 s per attempt) or
+a non-2xx continues it. There is no permanent-failure fast path: a receiver's 4xx is
+often a proxy answering while the real service restarts, and the whole ladder spans
+72 seconds.
+
+Delivery is asynchronous. The worker's signal request is answered as soon as the event
+row is written; an endpoint that is down does not hold it open.
+
+### The delivery history
+
+Every attempt is one `webhook_deliveries` row, written when the attempt ends:
+
+| Field | Meaning |
+| --- | --- |
+| `webhook_id` | the endpoint |
+| `event` | the trigger, `event.close` |
+| `payload` | the exact bytes that were sent, so the operator can replay them |
+| `attempt` | 1, 2 or 3 |
+| `status` | `delivered` or `failed` |
+| `status_code` | the HTTP status, or 0 when there was no response |
+| `error` | empty on success; otherwise the sentence — including the receiver's own words, capped at 200 bytes |
+| `delivered_at` | set only on the attempt that worked |
+
+An attempt that never happened gets no row: a process that shuts down between attempts
+records the sends it made and nothing else. The endpoint row also carries
+`last_error` and `last_delivered_at`, which is how the Settings page answers "is this
+webhook working" without reading the history.
+
+Rows are pruned after 30 days by the retention sweep (S7-09, sweep 5).
 
 ## Settings
 

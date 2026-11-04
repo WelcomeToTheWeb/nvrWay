@@ -14,6 +14,7 @@ import (
 	"nvr/server/media"
 	"nvr/server/models"
 	"nvr/server/store"
+	"nvr/server/webhooks"
 )
 
 // Boot order is the plan's (config → store → jwtAuth → sso →
@@ -143,6 +144,39 @@ func main() {
 	log.Printf("Clip builder: assembling into %s, armed %ds after an event's last signal (pre-roll %ds, post-roll %ds, event max %ds)",
 		cfg.ClipsDir, cfg.PostRollSeconds, cfg.PreRollSeconds, cfg.PostRollSeconds, cfg.EventMaxSeconds)
 
+	// Step 6 (S6-06): the outbound notifier. It is one object owned by the process
+	// because it owns the goroutines a close spawns and the context their retry
+	// ladders run on — a per-request deliverer would mean a per-request ladder that
+	// nothing can stop at shutdown.
+	//
+	// The base URL is the origin a *receiver* can dial. Left empty the payload
+	// carries loopback URLs, which is worth a line at boot because it is the
+	// configuration mistake that makes every webhook in the field look broken.
+	notifier := webhooks.New(st, cfg.PublicBaseURL, sealKeyForNotifier(cfg))
+	handlers.Webhooks = notifier
+	if cfg.PublicBaseURL == "" {
+		log.Println("Webhooks: PUBLIC_BASE_URL is unset, so the payload's snapshot and clip URLs point at http://localhost:8080")
+	} else {
+		log.Printf("Webhooks: delivering event closes signed, with the payload's URLs built from %s", cfg.PublicBaseURL)
+	}
+	defer func() {
+		// A notification already in flight gets a grace to finish — the send that
+		// reached the endpoint but not the database is the one an operator cannot
+		// find out about. After that the ladder is cancelled: an endpoint that is
+		// down should not add a minute to a shutdown the operator already asked for.
+		done := make(chan struct{})
+		go func() {
+			notifier.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			log.Println("Webhooks: a delivery was still in flight; stopping its ladder")
+		}
+		notifier.Close()
+	}()
+
 	srv := &http.Server{
 		Addr:    cfg.ServerPort,
 		Handler: router,
@@ -175,6 +209,21 @@ func main() {
 		log.Printf("Server forced to shutdown: %v", err)
 	}
 	log.Println("nvrWay server exited")
+}
+
+// sealKeyForNotifier is the key that opens a webhook row's stored signing secret.
+//
+// `config.SealKey` cannot fail for a configuration the rest of the boot already
+// accepted — an unparseable `NVR_SECRET_KEY` stops the storage routes too — but a
+// failure here is not fatal and must not be silent: the notifier would send every
+// delivery without a signature, and an operator wondering why the receiver rejects
+// them should read the answer at boot rather than deduce it.
+func sealKeyForNotifier(cfg *config.Config) [32]byte {
+	key, err := cfg.SealKey()
+	if err != nil {
+		log.Printf("Webhooks: NVR_SECRET_KEY is unusable (%v); deliveries will be sent without a signature", err)
+	}
+	return key
 }
 
 // countCameraRows is the boot line's count of what the recorder will supervise.

@@ -34,6 +34,7 @@ import (
 	"nvr/server/sidecar"
 	"nvr/server/sso"
 	"nvr/server/store"
+	"nvr/server/webhooks"
 	"nvr/server/ws"
 )
 
@@ -85,6 +86,13 @@ type Handlers struct {
 	// one per request. nil means the process has no assembler: signals file
 	// events, and the clips are simply never cut.
 	Clips ClipScheduler
+
+	// Webhooks is the outbound notifier (S6-06). One per process, like the
+	// recorder and the assembler: it owns the goroutines a close spawns and the
+	// context their ladders run on, so main.go builds it, and main.go stops it.
+	// nil means the process sends nothing — the close is still filed, and the
+	// absence is stated at boot rather than discovered when nothing arrives.
+	Webhooks *webhooks.Deliverer
 
 	// states is the server-side half of an SSO login in flight: the state value
 	// the redirect issued, with the nonce and PKCE verifier only this process

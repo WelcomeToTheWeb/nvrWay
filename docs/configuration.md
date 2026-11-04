@@ -67,8 +67,32 @@ tier it lives beside.
 | `UPLOADER_TICK_SECONDS` | `30` | upload queue tick |
 | `RATE_LIMIT_PER_MINUTE`/`RATE_LIMIT_BURST` | `120`/`0` | per-user REST budget (burst 0 = a tenth) |
 | `WS_ORIGINS`, `WEB_URL` | `""`, `http://localhost:3000` | WS origin guard, console origin |
+| `PUBLIC_BASE_URL` | empty → `http://localhost:8080` | the origin a **receiver** dials; builds the webhook payload's `snapshot_url` and `clip_url` |
 | `DET_PROVIDERS` | `CPUExecutionProvider` | forwarded in the detector config payload |
 | `TZ` | `UTC` | — |
+
+### Why `PUBLIC_BASE_URL` exists, and what an empty value costs
+
+A webhook payload carries two URLs — the event's picture and its clip — and both
+have to be dialable by the machine that received the notification. That is the one
+address this server cannot know from the inside:
+
+- the bind address is `:8080`, which names no host;
+- the `Host` header of the worker's signal POST is the name the *worker* dials,
+  which inside compose is `server:8080` and is useless to a Home Assistant or n8n
+  instance outside that compose network;
+- `GO2RTC_PUBLIC_URL` is the browser-facing base for *live view*, which is a
+  different process on a different port.
+
+So the installation states it. Set it to the origin an outside machine uses —
+`http://192.168.1.20:8080`, or `https://cam.example.com/nvr` behind a reverse proxy
+that mounts the API under a path prefix (the prefix is preserved). Left empty the
+payload carries `http://localhost:8080/...`, which works for a receiver on the same
+host and reads to everyone else as a broken webhook; the server logs that fact once
+at boot rather than letting it be deduced from a receiver's 404s.
+
+The plan's configuration table names no such variable. The payload shape the same
+plan specifies (`snapshot_url`, `clip_url`) requires one.
 
 ## Not in the table above
 

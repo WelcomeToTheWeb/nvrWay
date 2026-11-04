@@ -133,6 +133,19 @@ type Config struct {
 	WSOrigins string
 	WebURL    string
 
+	// PublicBaseURL is the origin an *outside* machine uses to reach this server's
+	// API — scheme, host, port and any reverse-proxy path prefix. The webhook
+	// payload's `snapshot_url` and `clip_url` are built from it, because a receiver
+	// on the LAN cannot read this server's CLIPS_DIR and the server cannot know its
+	// own address from the inside: the bind address is `:8080`, and the Host header
+	// of a worker's POST is the name the *worker* dials, which inside compose is
+	// `server:8080` and useless to a receiver outside it.
+	//
+	// Empty means "http://localhost:8080", which is right for a receiver on the
+	// same host and wrong for every other case. The plan's configuration table
+	// names no such variable — the payload shape it specifies requires one.
+	PublicBaseURL string
+
 	// DetProviders is the comma-separated ONNX runtime provider list forwarded
 	// verbatim in the detector config payload. CPU is the verified baseline.
 	DetProviders string
@@ -213,6 +226,8 @@ func Load() *Config {
 
 		WSOrigins: getEnv("WS_ORIGINS", ""),
 		WebURL:    getEnv("WEB_URL", "http://localhost:3000"),
+
+		PublicBaseURL: getEnv("PUBLIC_BASE_URL", ""),
 
 		DetProviders: getEnv("DET_PROVIDERS", "CPUExecutionProvider"),
 

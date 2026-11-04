@@ -392,6 +392,19 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 		h.Clips.Schedule(event)
 	}
 
+	if h.Webhooks != nil && event.Action == models.SignalActionClose {
+		// S6-06: the close is the trigger, and it is the only one v1 sends. The
+		// deliverer resolves the endpoints here and returns without waiting for any
+		// of them — an endpoint that is down would otherwise hold the worker's
+		// request open for the ladder's 72 seconds, and the signal has already been
+		// accepted into the database by this point.
+		//
+		// The camera row goes along because the payload names things a receiver
+		// knows — the slug, and the zone names the operator typed — and the event
+		// row stores only ids.
+		h.Webhooks.NotifyClose(event, cam)
+	}
+
 	return reply, ""
 }
 
