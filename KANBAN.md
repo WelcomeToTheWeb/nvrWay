@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 42 | 72 |
+| 0 | 0 | 2 | 41 | 73 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -51,7 +51,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S7-05`](kanban/cards/S7-05.md) | webdav.go: gowebdav driver over the PROPFIND subset | S7-01, S7-02 |
 | [`S7-06`](kanban/cards/S7-06.md) | sftp.go: password/key auth + host-key pinning | S7-01, S7-02 |
 | [`S7-07`](kanban/cards/S7-07.md) | Key layout: nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4, nvr/events/<id>/{clip,snapshot} | S7-01 |
 | [`S7-08`](kanban/cards/S7-08.md) | uploader.go: claim, upload, exponential retry, failed at 20, requeue, enable flag | S7-01, S1-11 |
@@ -222,6 +221,7 @@ _empty_
 | [`S7-02`](kanban/cards/S7-02.md) | seal.go: AES-256-GCM secret sealing keyed by SHA-256(NVR_SECRET_KEY) | S1-04 |
 | [`S7-03`](kanban/cards/S7-03.md) | fs.go: local dir / NFS mount with .part + rename | S7-01 |
 | [`S7-04`](kanban/cards/S7-04.md) | s3.go: minio-go driver, path-style always | S7-01, S7-02 |
+| [`S7-05`](kanban/cards/S7-05.md) | webdav.go: gowebdav driver over the PROPFIND subset | S7-01, S7-02 |
 
 ### Process — Repo mechanics
 
