@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 45 | 69 |
+| 0 | 0 | 2 | 44 | 70 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -51,7 +51,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S7-01`](kanban/cards/S7-01.md) | storage.go: Backend interface + Open dispatch (+ OpenDefault) | S1-04, S1-11, S7-02 |
 | [`S7-03`](kanban/cards/S7-03.md) | fs.go: local dir / NFS mount with .part + rename | S7-01 |
 | [`S7-04`](kanban/cards/S7-04.md) | s3.go: minio-go driver, path-style always | S7-01, S7-02 |
 | [`S7-05`](kanban/cards/S7-05.md) | webdav.go: gowebdav driver over the PROPFIND subset | S7-01, S7-02 |
@@ -221,6 +220,7 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
+| [`S7-01`](kanban/cards/S7-01.md) | storage.go: Backend interface + Open dispatch (+ OpenDefault) | S1-04, S1-11, S7-02 |
 | [`S7-02`](kanban/cards/S7-02.md) | seal.go: AES-256-GCM secret sealing keyed by SHA-256(NVR_SECRET_KEY) | S1-04 |
 
 ### Process — Repo mechanics
