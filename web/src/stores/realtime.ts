@@ -11,7 +11,7 @@
  * The store is a factory rather than a module-level singleton so a test can hand
  * it a socket and a clock. `useRealtime` below is the one the console uses.
  */
-import { create, type StoreApi } from 'zustand';
+import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
 import { readAccessToken } from '../auth/session';
 
@@ -99,7 +99,13 @@ export interface RealtimeActions {
   disconnect(): void;
 }
 
-export type RealtimeStore = StoreApi<RealtimeState & RealtimeActions>;
+/** The store, as a hook. `UseBoundStore` rather than a bare `StoreApi` because the
+ * pages subscribe with `useRealtime((s) => s.recorders[id])` — that call signature
+ * is the documented way in, and a `StoreApi` return type erases it, which only
+ * became visible when the first page consumed the feed (LivePage, card S4-06).
+ * `getState()` / `setState()` / `subscribe()` still work for a caller that is not
+ * rendering, so the suites that hand the store a socket are unchanged. */
+export type RealtimeStore = UseBoundStore<StoreApi<RealtimeState & RealtimeActions>>;
 
 export interface RealtimeOptions {
   /** Read fresh every attempt: a refresh rotates the access token, and a

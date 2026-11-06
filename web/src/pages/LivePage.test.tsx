@@ -1,9 +1,10 @@
 /**
  * LivePage renders the wall: one tile per camera, each tile saying what it
- * knows about the media. The player itself is mocked — its wire contract is
- * `go2rtc.test.ts`'s job. What is pinned here is the page's promise to the
- * operator: the media host comes from the server, every state is a sentence, and
- * a camera that cannot show anything says why instead of showing a black box.
+ * knows about the media and what the recorder last closed. The player itself is
+ * mocked — its wire contract is `go2rtc.test.ts`'s job. What is pinned here is
+ * the page's promise to the operator: the media host comes from the server, every
+ * state is a sentence, and a camera that cannot show anything says why instead of
+ * showing a black box.
  */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +13,7 @@ import client from '../api/client';
 import { axiosHarness, UNAUTHORIZED, type Call } from '../test/axiosHarness';
 import LivePage from './LivePage';
 import { connectLive } from '../live/go2rtc';
+import { useRealtime, type RecorderStatus } from '../stores/realtime';
 
 vi.mock('../live/go2rtc', () => ({
   connectLive: vi.fn(),
@@ -56,12 +58,41 @@ function ok(call: Call) {
 beforeEach(() => {
   started.length = 0;
   closed.length = 0;
+  // The feed is a module singleton; a frame left in it by one test would be a
+  // segment the next test never announced.
+  act(() => useRealtime.setState({ recorders: {} }));
   connectMock.mockImplementation((options) => {
     const call = options as unknown as PlayerCall;
     started.push(call);
     return { close: () => closed.push(call.slug) };
   });
 });
+
+/** A `recorder.status` frame as `server/media/segments.go` sends it. */
+function status(cameraId: string, lastSegmentAt: string, over: Partial<RecorderStatus> = {}): RecorderStatus {
+  return {
+    camera_id: cameraId,
+    mode: 'continuous',
+    segment_seconds: 5,
+    last_segment_at: lastSegmentAt,
+    ...over,
+  };
+}
+
+/** The same time the console renders it: the server's UTC instant, in the clock
+ * the operator reads. Pinned here so the assertion is about the line showing the
+ * feed's value, not about a timezone this suite happens to run in. */
+function clock(rfc3339: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(rfc3339));
+}
+
+function tiles(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll('section')) as HTMLElement[];
+}
 
 describe('LivePage', () => {
   it('asks the server for the media host and for the cameras', async () => {
@@ -172,6 +203,101 @@ describe('LivePage', () => {
 
     unmount();
     expect(closed.sort()).toEqual(['front-door', 'porch']);
+    h.restore();
+  });
+});
+
+/**
+ * The recorder's line (card S4-06). A different fact from the media state above
+ * it: the wall can show a dead camera live, and a recording camera not at all.
+ * What is pinned here is where the line's value comes from — the feed, keyed by
+ * camera id — and that reading it costs the server no request.
+ */
+describe('LivePage — the recorder line', () => {
+  it('says there is no segment yet, rather than implying a recording it has not seen', async () => {
+    const h = attachHarness(ok);
+    render(<LivePage />);
+    expect(await screen.findAllByText(/no segment yet/)).toHaveLength(2);
+    h.restore();
+  });
+
+  it('puts the segment on the tile the feed named, and on no other', async () => {
+    const h = attachHarness(ok);
+    const { container } = render(<LivePage />);
+    await screen.findAllByText(/no segment yet/);
+
+    act(() => useRealtime.setState({ recorders: { c1: status('c1', '2026-11-06T20:46:12Z') } }));
+
+    const [front, porch] = tiles(container);
+    expect(front.textContent).toContain(`last segment ${clock('2026-11-06T20:46:12Z')}`);
+    expect(porch.textContent).toContain('no segment yet');
+    h.restore();
+  });
+
+  it('says what the recorder said: the mode, the length it cuts, and when the last one closed', async () => {
+    const h = attachHarness(ok);
+    const { container } = render(<LivePage />);
+    await screen.findAllByText(/no segment yet/);
+
+    act(() =>
+      useRealtime.setState({
+        recorders: { c1: status('c1', '2026-11-06T20:46:12Z', { mode: 'events', segment_seconds: 15 }) },
+      }),
+    );
+
+    const line = tiles(container)[0].textContent ?? '';
+    expect(line).toContain(`last segment ${clock('2026-11-06T20:46:12Z')}`);
+    expect(line).toContain('events');
+    expect(line).toContain('15s segments');
+    h.restore();
+  });
+
+  it('moves when the feed moves, and asks the server for nothing to do it', async () => {
+    const h = attachHarness(ok);
+    const { container } = render(<LivePage />);
+    await waitFor(() => expect(h.calls).toHaveLength(2));
+
+    act(() => useRealtime.setState({ recorders: { c1: status('c1', '2026-11-06T20:46:12Z') } }));
+    const first = tiles(container)[0].textContent ?? '';
+
+    act(() => useRealtime.setState({ recorders: { c1: status('c1', '2026-11-06T20:46:17Z') } }));
+    const second = tiles(container)[0].textContent ?? '';
+
+    expect(first).toContain(clock('2026-11-06T20:46:12Z'));
+    expect(second).toContain(clock('2026-11-06T20:46:17Z'));
+    expect(second).not.toContain(clock('2026-11-06T20:46:12Z'));
+    // The status line is the feed's, so the wall still made exactly the two
+    // requests it makes on its own. This is the card's "no polling".
+    expect(h.calls.map((c) => c.url).sort()).toEqual(['/v1/cameras', '/v1/settings/live']);
+    h.restore();
+  });
+
+  it('keeps reporting closed segments when the wall cannot show a picture', async () => {
+    const h = attachHarness(ok);
+    const { container } = render(<LivePage />);
+    await waitFor(() => expect(started).toHaveLength(2));
+
+    act(() => {
+      started[0].onState({ kind: 'offline', reason: 'webrtc/offer: stream not found' });
+      useRealtime.setState({ recorders: { c1: status('c1', '2026-11-06T20:46:12Z') } });
+    });
+
+    const line = tiles(container)[0].textContent ?? '';
+    expect(line).toContain('offline');
+    expect(line).toContain(`last segment ${clock('2026-11-06T20:46:12Z')}`);
+    h.restore();
+  });
+
+  it('shows a timestamp it cannot read as it arrived, not as Invalid Date', async () => {
+    const h = attachHarness(ok);
+    const { container } = render(<LivePage />);
+    await screen.findAllByText(/no segment yet/);
+
+    act(() => useRealtime.setState({ recorders: { c1: status('c1', 'not a timestamp') } }));
+
+    const line = tiles(container)[0].textContent ?? '';
+    expect(line).toContain('last segment not a timestamp');
+    expect(line).not.toContain('Invalid Date');
     h.restore();
   });
 });

@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 27 | 89 |
+| 0 | 0 | 1 | 26 | 90 |
 
 Total cards: **117**. In Progress limit: **2**.
 
@@ -31,12 +31,6 @@ _empty_
 
 ## Backlog
 
-
-### Step 4 — Recorder: continuous + event-gated segments
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03, S8-10 |
 
 ### Step 8 — Web console
 
@@ -160,6 +154,7 @@ _empty_
 | [`S4-03`](kanban/cards/S4-03.md) | Segment discovery: tail the ffmpeg CSV into segment rows on the server clock | S4-02, S1-10 |
 | [`S4-04`](kanban/cards/S4-04.md) | Crash handling: ffmpeg exit -> log + camera.status offline + restart backoff | S4-01, S4-03, S2-10 |
 | [`S4-05`](kanban/cards/S4-05.md) | GET /api/v1/segments — the timeline manifest | S1-10, S2-08, S4-03 |
+| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03, S8-10 |
 | [`S4-07`](kanban/cards/S4-07.md) | Recorder suite: lavfi fake source writes real segments | S4-01, S4-02, S4-03, S4-04 |
 
 ### Step 5 — Detection worker (Python)

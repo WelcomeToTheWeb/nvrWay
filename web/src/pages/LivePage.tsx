@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import client from '../api/client';
 import { connectLive, type LiveState } from '../live/go2rtc';
+import { useRealtime, type RecorderStatus } from '../stores/realtime';
 
 /** The part of a camera row this page renders. The wall does not need the
  * detection tuning, and asking for a narrower view is the server's problem. */
@@ -55,9 +56,60 @@ const TILE_STATE: Record<Exclude<LiveState['kind'], 'playing'>, string> = {
   unsupported: 'unsupported',
 };
 
+/** The recorder's clock, in the operator's own clock: the value on the wire is
+ * UTC because the server owns event time, and the wall is read by a person who
+ * lives in a timezone. */
+const SEGMENT_CLOCK = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+/** `last_segment_at`, as a time of day. A timestamp this build cannot read is
+ * shown as it arrived rather than as `Invalid Date` — the server's oddity is
+ * information, the formatter's complaint is not. */
+function segmentClock(rfc3339: string): string {
+  const at = new Date(rfc3339);
+  return Number.isNaN(at.getTime()) ? rfc3339 : SEGMENT_CLOCK.format(at);
+}
+
+/** What the recorder last closed, in the recorder's own words.
+ *
+ * This is a different fact from the one above it. The media line says what the
+ * *media host* is doing — a viewer can watch a dead camera live, and a recording
+ * camera can be unwatchable. This line says a segment closed, and when, which is
+ * the only proof of recording the console has: the recorder announces once per
+ * closed segment (`server/media/segments.go`), never per frame, so this line
+ * moves on the recorder's clock and needs no request of its own.
+ *
+ * It stops short of the word `recording`. The feed proves the last segment
+ * closed; it does not prove the next one will, and a camera whose ffmpeg died
+ * keeps showing its last closed segment until `camera.status` says offline —
+ * which is the server's own announcement of that, on the line above.
+ */
+function RecorderLine({ status }: { status: RecorderStatus | undefined }) {
+  if (!status) {
+    return (
+      <p className="mt-2 font-mono text-xs text-text-secondary">
+        no segment yet — the recorder has not closed one for this camera
+      </p>
+    );
+  }
+  return (
+    <p className="mt-2 font-mono text-xs text-text-secondary">
+      <span>last segment {segmentClock(status.last_segment_at)}</span>
+      <span className="ml-2 uppercase tracking-cap">{status.mode}</span>
+      <span className="ml-2">{status.segment_seconds}s segments</span>
+    </p>
+  );
+}
+
 function LiveTile({ base, camera }: { base: string; camera: Camera }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<LiveState>({ kind: 'connecting' });
+  // The recorder's line comes from the feed, keyed by camera id — the id, not the
+  // slug, because a slug can be reused and an id cannot.
+  const recorder = useRealtime((s) => s.recorders[camera.id]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -112,6 +164,8 @@ function LiveTile({ base, camera }: { base: string; camera: Camera }) {
           ) : null}
         </p>
       )}
+
+      <RecorderLine status={recorder} />
     </section>
   );
 }
@@ -152,6 +206,16 @@ export default function LivePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The wall opens the live feed, and nothing here closes it. `useRealtime` is one
+  // socket per tab, and the recorder's line is one of the things it carries; a
+  // tile unmounting must not drop the feed the next page reads, so `disconnect()`
+  // stays the shell's (S8-09) call, made when the session ends. `connect()` is
+  // idempotent, so StrictMode's double-invoke costs nothing, and with no access
+  // token it opens nothing and says why.
+  useEffect(() => {
+    useRealtime.getState().connect();
+  }, []);
 
   if (page.kind === 'reading') {
     return (

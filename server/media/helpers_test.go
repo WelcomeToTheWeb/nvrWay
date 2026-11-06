@@ -515,9 +515,19 @@ func segmentName(argv []string, n int) string {
 }
 
 // segmentsFor reads a camera's manifest rows back, oldest first.
+//
+// The window is deliberately absurd, and it is the point: this helper used to ask
+// for "the last 48 hours" of the **host's** clock, while every row it reads was
+// stamped by the recorder's injected clock, whose date is fixed at 2026-11-03
+// (fakeClock). Real time does not stop, so the rows slid out of the window and
+// the suites lost the very rows they were asserting — nine at a time, reported as
+// flakiness. A helper whose answer depends on the date the suite runs is not a
+// helper. Production callers (the timeline manifest, the clip window) do have a
+// real window, and that is what their own suites assert; this one's job is "every
+// row this camera has".
 func segmentsFor(t *testing.T, st *store.Store, cameraID string) []models.Segment {
 	t.Helper()
-	rows, err := st.Segments.ListRange(cameraID, time.Now().Add(-48*time.Hour), time.Now().Add(48*time.Hour), 0)
+	rows, err := st.Segments.ListRange(cameraID, time.Unix(0, 0), time.Date(2200, 1, 1, 0, 0, 0, 0, time.UTC), 0)
 	if err != nil {
 		t.Fatalf("reading segments: %v", err)
 	}
