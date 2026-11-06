@@ -1,12 +1,18 @@
-// The webhook settings surface (S6-07): the endpoints, and the history that
-// answers the one question an operator brings to them.
+// The settings surface, in two gates.
 //
-// Everything here is admin-only. A webhook is a door out of the house — an
-// endpoint that receives pictures of people on a person's property, and a URL
-// this server will POST to on someone's say-so — so it sits behind the same gate
-// as the storage backends and the OIDC providers, and every write is a ledger row.
+// The webhook half (S6-07) is the endpoints, and the history that answers the
+// one question an operator brings to them. **Everything in that half is
+// admin-only.** A webhook is a door out of the house — an endpoint that
+// receives pictures of people on a person's property, and a URL this server
+// will POST to on someone's say-so — so it sits behind the same gate as the
+// storage backends and the OIDC providers, and every write is a ledger row.
 //
-// Two rules shape the shape of the answers.
+// The live half (S8-04) is the one deployment fact the console has to read
+// before it can draw itself, and it sits behind the plain read gate, because a
+// `viewer` is exactly the role that watches the wall. Do not read this file's
+// first paragraph as covering both: the gates differ on purpose.
+//
+// Two rules shape the shape of the webhook answers.
 //
 // **The signing secret has no path out.** The console writes it and reads back
 // `secret_set`, exactly like a storage backend's credentials, and the suite proves
@@ -576,4 +582,48 @@ func formatTimePtr(t *time.Time) *string {
 	}
 	value := t.UTC().Format(timeLayout)
 	return &value
+}
+
+// ---------------------------------------------------------------------------
+// The live settings (S8-04) — read gate, not admin.
+// ---------------------------------------------------------------------------
+
+// registerLiveSettingsRoutes mounts the settings the console has to read before
+// it can draw itself.
+//
+// The gate is the plain read gate — `AuthMiddleware` alone, exactly as the
+// camera list and the event list mount it — because the role that needs this
+// answer is the one the plan puts lowest: a `viewer` watches the wall, and the
+// wall cannot draw without knowing where the media lives.
+func (h *Handlers) registerLiveSettingsRoutes(r *gin.Engine) {
+	read := r.Group("/api/v1/settings", AuthMiddleware(h.JWT))
+	read.GET("/live", h.LiveSettings)
+}
+
+// LiveSettings answers the one deployment fact the live player cannot guess:
+// where go2rtc is reachable **from the browser**, which is not where the server
+// reaches it from.
+//
+// `GO2RTC_PUBLIC_URL` and `GO2RTC_URL` are different values in a real
+// deployment — the second is the container-network address the server and the
+// worker use, and it is frequently a name the browser has never resolved. A
+// console that hard-coded either one could not move between a laptop, a LAN box
+// and a reverse proxy without a rebuild.
+//
+// The value is returned **verbatim**. The player derives its WebSocket base from
+// it with a scheme swap and a path append, so a handler that "helped" —
+// normalised the scheme, trimmed the port, added a trailing slash — would
+// produce a URL that fails as a media fault, in a product whose whole
+// debugging story is that the machine says what it is doing.
+func (h *Handlers) LiveSettings(c *gin.Context) {
+	// An empty media host is refused rather than answered. `""` would travel
+	// into the player and come back as `ws:///api/ws?src=…`: a connection error
+	// pointing at the camera, for a mistake made in an env file. Naming the
+	// missing setting is the only answer that closes the distance.
+	if h.Cfg.Go2rtcPublicURL == "" {
+		jsonError(c, http.StatusServiceUnavailable,
+			"GO2RTC_PUBLIC_URL is not configured, so this installation has no media host to name")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"go2rtc_public_url": h.Cfg.Go2rtcPublicURL})
 }

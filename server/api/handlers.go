@@ -219,6 +219,13 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// the attempt history that answers why one is not arriving.
 	h.registerWebhookRoutes(admin)
 
+	// The live settings (S8-04): the media host the player reaches *from the
+	// browser*, which is not the address the server uses. Mounted on the plain
+	// read gate rather than `admin`, because the role that needs it is the one
+	// the plan puts lowest — a viewer watches the wall, and the wall cannot draw
+	// without knowing where the media lives.
+	h.registerLiveSettingsRoutes(r)
+
 	// The detection worker's API. The gate is mounted so the answer
 	// "internal api disabled" is true the moment WORKER_TOKEN is empty, and the
 	// two routes the worker polls and posts to are mounted behind it (S5-10).
