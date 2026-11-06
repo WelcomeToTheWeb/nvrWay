@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 26 | 89 |
+| 0 | 0 | 1 | 27 | 89 |
 
 Total cards: **117**. In Progress limit: **2**.
 
@@ -23,12 +23,6 @@ _empty_
 ## Blocked
 
 
-### Step 4 — Recorder: continuous + event-gated segments
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03, S8-10 |
-
 ### Step 9 — Containers, compose, scripts, CI
 
 | Card | Title | Depends |
@@ -37,6 +31,12 @@ _empty_
 
 ## Backlog
 
+
+### Step 4 — Recorder: continuous + event-gated segments
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03, S8-10 |
 
 ### Step 8 — Web console
 
