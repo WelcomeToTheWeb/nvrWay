@@ -26,3 +26,12 @@ if [ -d "$PK_AGENT/kanban" ]; then
 	python3 kanban/pi_board.py --list nvrway --quiet \
 		|| echo "pre-commit: pi-kanban mirror did not run — python3 kanban/pi_board.py"
 fi
+
+# The DeepSeek Harness mirror (P-09): the workspace board (KANBAN.json) is
+# derived from the same cards. Skipped when the tree has no KANBAN.json, so a
+# plain clone never grows one — the file is gitignored and belongs to whoever
+# runs an agent in this workspace.
+if [ -f KANBAN.json ]; then
+	python3 kanban/harness_board.py >/dev/null \
+		|| echo "pre-commit: harness board mirror did not run — python3 kanban/harness_board.py"
+fi
