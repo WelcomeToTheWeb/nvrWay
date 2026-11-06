@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   nvrWay — the token definitions behind tailwind.config.ts.
+
+   Components write `bg-bg-card`, `text-status-offline`, `border-severity-3`.
+   They never write a hex. Every colour on screen is a fact about the
+   machine — a camera's state, an event's severity, the operator's own
+   drawing — so the names are the facts, and the values live here where
+   one change restyles the whole console.
+
+   Night is the default rendition (index.html ships class="dark"): THE WALL
+   is a dark room with cameras on it. The day rendition is the same roles
+   on paper, for a console opened in daylight.
+
+   This is the scaffold's palette: enough that every token the bridge names
+   resolves to a real colour, and no more. A visual pass over density,
+   surfaces and type is console work, not scaffold work.
+   ===================================================================== */
+
+:root {
+  /* paper */
+  --bg-primary: #f4f5f7;
+  --bg-secondary: #eceef2;
+  --bg-card: #ffffff;
+  --bg-border: #d4d9e0;
+  --text-primary: #15181d;
+  --text-secondary: #4b525c;
+  --text-muted: #6d747e;
+
+  /* rules */
+  --rule: #d4d9e0;
+  --rule-strong: #9aa2ad;
+
+  /* the operator's mark: a drawn zone, a dragged vertex, the LIVE row */
+  --accent: #1f5fbf;
+  --accent-light: #4a86d8;
+  --accent-dark: #17458c;
+
+  /* a camera's truth, from camera.status */
+  --online: #1a7f37;
+  --offline: #6d747e;
+  --warning: #9a6700;
+  --error: #cf222e;
+
+  /* an event's severity: 1 noted, 2 noteworthy, 3 call somebody,
+     4 intrusion, 5 intrusion in the home */
+  --severity-1: #6d747e;
+  --severity-2: #9a6700;
+  --severity-3: #bc5a1d;
+  --severity-4: #d12d1a;
+  --severity-5: #a5111b;
+
+  --focus: #1f5fbf;
+}
+
+.dark {
+  /* graphite, lit by the wall */
+  --bg-primary: #101317;
+  --bg-secondary: #0b0d10;
+  --bg-card: #171b21;
+  --bg-border: #262c34;
+  --text-primary: #e6e9ee;
+  --text-secondary: #a7afba;
+  --text-muted: #6f7883;
+
+  --rule: #262c34;
+  --rule-strong: #3c444e;
+
+  --accent: #4a9eff;
+  --accent-light: #7ab8ff;
+  --accent-dark: #2f74c4;
+
+  --online: #2ea043;
+  --offline: #6f7883;
+  --warning: #d29922;
+  --error: #f0544c;
+
+  --severity-1: #6f7883;
+  --severity-2: #b08800;
+  --severity-3: #e3873c;
+  --severity-4: #f0653a;
+  --severity-5: #e5484d;
+
+  --focus: #4a9eff;
+}
+
+@layer base {
+  *:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+}

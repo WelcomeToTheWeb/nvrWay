@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 32 | 82 |
+| 0 | 0 | 2 | 31 | 83 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S8-01`](kanban/cards/S8-01.md) | Console scaffold: package.json, vite, tailwind, tsconfig, index.html | S0-01 |
 | [`S8-02`](kanban/cards/S8-02.md) | api/client.ts + auth context: bearer, 401 -> refresh once -> retry, session keys | S8-01, S2-06 |
 | [`S8-03`](kanban/cards/S8-03.md) | LoginPage + AuthCallbackPage: status-driven buttons and the fragment handoff | S8-02, S2-07 |
 | [`S8-04`](kanban/cards/S8-04.md) | GET /api/v1/settings/live (server): the console never hard-codes the media host | S2-08, S1-01 |
@@ -212,6 +211,12 @@ _empty_
 | [`S7-08`](kanban/cards/S7-08.md) | "uploader.go: claim, upload, exponential retry, failed at 20, requeue, enable flag" | S7-01, S1-11 |
 | [`S7-09`](kanban/cards/S7-09.md) | "sweeper.go: the seven sweeps, with the un-uploaded protection window" | S1-11, S7-08 |
 | [`S7-10`](kanban/cards/S7-10.md) | "Storage API: backends CRUD, test, default, prefixes, queue" | S2-08, S7-01, S7-02 |
+
+### Step 8 — Web console
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S8-01`](kanban/cards/S8-01.md) | Console scaffold: package.json, vite, tailwind, tsconfig, index.html | S0-01 |
 
 ### Process — Repo mechanics
 
