@@ -39,6 +39,14 @@ data/
 /nvr_cfg2.json
 /spec.json
 
+# The coding agent's own session board, written by the DeepSeek Harness kanban
+# plugin into the repo root. It is per-machine working state, not the product's
+# board: nvrWay's board is kanban/cards/*.md (source of truth) rendered to
+# KANBAN.md, and a second board file inside an install would only invite the two
+# to disagree. Root-anchored for the P-05 reason — unanchored, `KANBAN.json`
+# would also ignore a real one inside any package (card P-07).
+/KANBAN.json
+
 # Python packaging / test scratch
 __pycache__/
 .pytest_cache/
