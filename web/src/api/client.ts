@@ -150,4 +150,19 @@ client.interceptors.response.use(
   },
 );
 
+/**
+ * The server's own words when it has them. A status code is not a sentence, and
+ * "something went wrong" is not either — every refusal on this API carries
+ * `{"error": "…"}` written to be read by an operator, so the console repeats it
+ * rather than paraphrasing it into something less true.
+ */
+export function serverWords(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const body = error.response?.data as { error?: string } | undefined;
+    if (body?.error) return body.error;
+    if (error.response) return `the server answered ${error.response.status}`;
+  }
+  return fallback;
+}
+
 export default client;

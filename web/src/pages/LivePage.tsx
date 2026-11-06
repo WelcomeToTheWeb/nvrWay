@@ -9,8 +9,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import axios from 'axios';
-import client from '../api/client';
+import client, { serverWords } from '../api/client';
 import { connectLive, type LiveState } from '../live/go2rtc';
 import { useRealtime, type RecorderStatus } from '../stores/realtime';
 
@@ -26,17 +25,6 @@ type PageState =
   | { kind: 'reading' }
   | { kind: 'failed'; reason: string }
   | { kind: 'ready'; base: string; cameras: Camera[] };
-
-/** The server's own words when it has them. A status code is not a sentence,
- * and "something went wrong" is not either. */
-function serverWords(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
-    const body = error.response?.data as { error?: string } | undefined;
-    if (body?.error) return body.error;
-    if (error.response) return `the server answered ${error.response.status}`;
-  }
-  return fallback;
-}
 
 /** Only three states carry a reason, and the type says which. Narrowing with
  * `"reason" in state` does not satisfy the compiler across a discriminated
@@ -130,7 +118,7 @@ function LiveTile({ base, camera }: { base: string; camera: Camera }) {
   const playing = state.kind === 'playing';
 
   return (
-    <section className="border border-border bg-surface p-3">
+    <section className="border border-rule bg-bg-card p-3">
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="font-cap text-sm uppercase tracking-cap text-text-primary">{camera.name}</h2>
         <span className="font-mono text-xs text-text-secondary">{camera.slug}</span>
@@ -154,7 +142,7 @@ function LiveTile({ base, camera }: { base: string; camera: Camera }) {
             className={
               state.kind === 'connecting'
                 ? 'text-text-secondary'
-                : 'text-danger uppercase tracking-cap font-cap text-xs'
+                : 'text-status-error uppercase tracking-cap font-cap text-xs'
             }
           >
             {TILE_STATE[state.kind]}
@@ -230,7 +218,7 @@ export default function LivePage() {
     return (
       <main className="p-6">
         <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Live</h1>
-        <p className="mt-4 text-sm text-danger">{page.reason}</p>
+        <p className="mt-4 text-sm text-status-error">{page.reason}</p>
       </main>
     );
   }

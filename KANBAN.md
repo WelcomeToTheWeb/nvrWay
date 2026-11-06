@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 26 | 90 |
+| 0 | 0 | 1 | 27 | 91 |
 
-Total cards: **117**. In Progress limit: **2**.
+Total cards: **119**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -36,7 +36,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S8-06`](kanban/cards/S8-06.md) | EventsPage + detail drawer: cards, filters, timeline strip, LIVE row | S8-02, S6-04, S8-10 |
 | [`S8-07`](kanban/cards/S8-07.md) | CamerasPage + ZoneEditor: canvas polygon editor over the snapshot | S8-02, S3-03, S3-04 |
 | [`S8-08`](kanban/cards/S8-08.md) | SettingsPage: backends + test-connection state, OIDC, webhooks, retention | S8-02, S7-10, S6-07, S2-07 |
 | [`S8-09`](kanban/cards/S8-09.md) | AuditPage + routes/nav role gating | S8-02, S2-09 |
@@ -82,6 +81,8 @@ _empty_
 | --- | --- | --- |
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
 | [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
+| [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
+| [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
 
 ## Done
 
@@ -211,6 +212,7 @@ _empty_
 | [`S8-03`](kanban/cards/S8-03.md) | LoginPage + AuthCallbackPage: status-driven buttons and the fragment handoff | S8-02, S2-07 |
 | [`S8-04`](kanban/cards/S8-04.md) | GET /api/v1/settings/live (server): the console never hard-codes the media host | S2-08, S1-01 |
 | [`S8-05`](kanban/cards/S8-05.md) | "LivePage + go2rtc.ts: native RTCPeerConnection over go2rtc's WS API" | S8-02, S8-04, S3-01 |
+| [`S8-06`](kanban/cards/S8-06.md) | EventsPage + detail drawer: cards, filters, timeline strip, LIVE row | S8-02, S6-04, S8-10 |
 | [`S8-10`](kanban/cards/S8-10.md) | "realtime.ts: zustand store over /ws?token= with backoff + stale banner" | S8-02, S2-10 |
 
 ### Process — Repo mechanics
