@@ -165,4 +165,24 @@ export function serverWords(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * The second half of a refusal that carries one.
+ *
+ * `zoneError` in `server/api/zones.go` answers
+ * `{"error":"zone polygon invalid","detail":"zone z1: polygon needs 3-32
+ * vertices, got 2 (…)"}` and says why in its own comment: the fixed `error` is
+ * the contract the console and the docs name, the `detail` is *"what tells the
+ * operator which zone and what about it — 'your JSON is wrong' is a bug report
+ * they cannot act on"*. A console that renders only the first half reproduces
+ * exactly the refusal it was warned about, so the two are read together
+ * wherever a write is refused.
+ */
+export function serverDetail(error: unknown): string | null {
+  if (axios.isAxiosError(error)) {
+    const body = error.response?.data as { detail?: string } | undefined;
+    if (body?.detail) return body.detail;
+  }
+  return null;
+}
+
 export default client;
