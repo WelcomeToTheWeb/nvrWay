@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 2 | 30 | 84 |
+| 0 | 0 | 2 | 29 | 85 |
 
 Total cards: **116**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S8-03`](kanban/cards/S8-03.md) | LoginPage + AuthCallbackPage: status-driven buttons and the fragment handoff | S8-02, S2-07 |
 | [`S8-04`](kanban/cards/S8-04.md) | GET /api/v1/settings/live (server): the console never hard-codes the media host | S2-08, S1-01 |
 | [`S8-05`](kanban/cards/S8-05.md) | LivePage + go2rtc.ts: native RTCPeerConnection over go2rtc's WS API | S8-02, S8-04, S3-01 |
 | [`S8-06`](kanban/cards/S8-06.md) | EventsPage + detail drawer: cards, filters, timeline strip, LIVE row | S8-02, S6-04, S8-10 |
@@ -217,6 +216,7 @@ _empty_
 | --- | --- | --- |
 | [`S8-01`](kanban/cards/S8-01.md) | Console scaffold: package.json, vite, tailwind, tsconfig, index.html | S0-01 |
 | [`S8-02`](kanban/cards/S8-02.md) | api/client.ts + auth context: bearer, 401 -> refresh once -> retry, session keys | S8-01, S2-06 |
+| [`S8-03`](kanban/cards/S8-03.md) | LoginPage + AuthCallbackPage: status-driven buttons and the fragment handoff | S8-02, S2-07 |
 
 ### Process — Repo mechanics
 
