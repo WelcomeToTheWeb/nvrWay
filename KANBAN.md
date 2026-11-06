@@ -27,7 +27,7 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03 |
+| [`S4-06`](kanban/cards/S4-06.md) | recorder.status broadcast (one per segment tick) | S2-10, S4-03, S8-10 |
 
 ### Step 9 — Containers, compose, scripts, CI
 
