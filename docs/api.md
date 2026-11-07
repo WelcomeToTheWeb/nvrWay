@@ -130,6 +130,16 @@ The identities routes are S2-07's (`GET /api/identities`,
 and the `409` on collision, the zone polygon rules (3–32 vertices, `0..1`
 bounds, `422`), and that every write re-renders go2rtc's config.
 
+`DELETE /api/v1/cameras/:id` (admin) destroys the camera's event and segment
+rows, its local files, and queues the remote purge jobs; it answers
+`{deleted, slug, segments, events, local_files, remote_jobs, config_applied}`.
+`GET /api/v1/cameras/:id/delete-summary` (admin, S8-13) answers the same four
+counts **before** the act — the delete's arithmetic without the destruction,
+from the same row walks and the same slug sweep — so the console's
+confirmation can name the size of an irreversible act instead of guessing
+from list pages. `storage_tier: false` says there is no tier at all, which is
+not the same sentence as `remote_jobs: 0`.
+
 ## Segments — the timeline manifest
 
 `GET /api/v1/segments?camera_id=&from=&to=` (S4-05). State the row shape

@@ -58,6 +58,9 @@ func (h *Handlers) registerCameraRoutes(r *gin.Engine) {
 
 	admin := read.Group("", RequireRole(models.RoleAdmin, h.St.Audit))
 	admin.DELETE("/:id", h.DeleteCamera)
+	// The delete's confirmation reads this, so it shares the delete's floor:
+	// the counts describe a destruction only this role may cause.
+	admin.GET("/:id/delete-summary", h.CameraDeleteSummary)
 }
 
 // Go2rtcBootReport is what the boot step has to say: the sidecar's state, how
@@ -565,6 +568,76 @@ func (h *Handlers) DeleteCamera(c *gin.Context) {
 	})
 }
 
+// CameraDeleteSummary answers, before the fact, what `DELETE /:id` is about to
+// destroy — the confirmation dialog's four counts (S8-13): segment rows, event
+// rows, local files on disk, and the remote purge jobs the delete would queue.
+//
+// It is the delete's own arithmetic without the destruction: the same row
+// walks, the same `cameraMediaPaths` sweep (counting the paths that exist),
+// the same upload flags `enqueueCameraPurge` keys its jobs off. A confirmation
+// that guessed from the list endpoints would name a smaller number than the
+// route destroys — the slug sweep catches files no row names — and a
+// confirmation that lies about an irreversible act is worse than none.
+//
+// The counts are a moment's truth: recording continues, so a segment can land
+// between this read and the delete. The dialog says what the server knew when
+// it answered; the delete's own response says what it destroyed.
+func (h *Handlers) CameraDeleteSummary(c *gin.Context) {
+	camera, ok := h.cameraByID(c)
+	if !ok {
+		return
+	}
+	segments, err := h.allSegmentsFor(camera.ID)
+	if err != nil {
+		jsonError(c, http.StatusInternalServerError, "the camera's segments are unreadable")
+		return
+	}
+	events, err := h.allEventsFor(camera.ID)
+	if err != nil {
+		jsonError(c, http.StatusInternalServerError, "the camera's events are unreadable")
+		return
+	}
+
+	localFiles := 0
+	for _, path := range h.cameraMediaPaths(camera, segments, events) {
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			localFiles++
+		}
+	}
+
+	// The same question the purge asks: is there a tier at all. Without one
+	// there is nothing remote to purge, and the dialog says so instead of
+	// showing a zero that could be read as "nothing was uploaded".
+	remoteJobs := 0
+	storageTier := false
+	if _, err := h.St.StorageBackends.GetDefault(); err == nil {
+		storageTier = true
+		for _, seg := range segments {
+			if seg.Uploaded() {
+				remoteJobs++
+			}
+		}
+		for _, event := range events {
+			if event.SnapshotUploaded() {
+				remoteJobs++
+			}
+			if event.ClipUploaded() {
+				remoteJobs++
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"camera_id":    camera.ID,
+		"slug":         camera.Slug,
+		"segments":     len(segments),
+		"events":       len(events),
+		"local_files":  localFiles,
+		"remote_jobs":  remoteJobs,
+		"storage_tier": storageTier,
+	})
+}
+
 // enqueueCameraPurge queues the remote deletion of everything this camera's
 // footage reached on the tier: uploaded segments, uploaded snapshots, uploaded
 // clips.
@@ -648,31 +721,27 @@ func (h *Handlers) enqueueCameraPurge(ctx context.Context, camera *models.Camera
 	return queued, strings.Join(problems, "; ")
 }
 
-// removeLocalCameraMedia deletes this camera's files under the media tree.
-//
-// Two passes, deliberately. The segment rows name the files the database knows
-// about; the slug sweep catches the ones it does not — a segment ffmpeg wrote and
-// the CSV never reported, the CSV itself, a segment written after a crash. A
-// camera deleted with files still under SEGMENTS_DIR is disk that nothing will
-// ever reclaim, because the sweeper walks rows, not directories.
-//
-// Only files whose name starts with the slug are touched. The slug is
-// `[a-z0-9][a-z0-9-]{1,31}`, so it cannot contain a path separator, and matching
-// by prefix is what keeps this from becoming a recursive delete over a directory
-// shared with other cameras.
-func (h *Handlers) removeLocalCameraMedia(camera *models.Camera, segments []models.Segment, events []models.Event) int {
-	removed := 0
+// cameraMediaPaths is the one list of files a camera's delete will attempt —
+// the segment rows' paths, the slug sweep over the three media directories,
+// and the events' snapshot and clip paths, deduplicated. It exists so the
+// delete and its summary (S8-13) cannot drift: the confirmation dialog names
+// the size of the destruction from the same walk the destruction performs.
+func (h *Handlers) cameraMediaPaths(camera *models.Camera, segments []models.Segment, events []models.Event) []string {
 	prefixes := []string{camera.Slug + "-", camera.Slug + ".csv", camera.Slug + "_"}
 
-	for _, seg := range segments {
-		if seg.Path == "" {
-			continue
+	var paths []string
+	seen := map[string]bool{}
+	add := func(path string) {
+		if path == "" || seen[path] {
+			return
 		}
-		if err := os.Remove(seg.Path); err == nil {
-			removed++
-		}
+		seen[path] = true
+		paths = append(paths, path)
 	}
 
+	for _, seg := range segments {
+		add(seg.Path)
+	}
 	for _, dir := range []string{h.Cfg.SegmentsDir, h.Cfg.ClipsDir, h.Cfg.SnapshotsDir} {
 		if dir == "" {
 			continue
@@ -688,23 +757,36 @@ func (h *Handlers) removeLocalCameraMedia(camera *models.Camera, segments []mode
 			name := entry.Name()
 			for _, prefix := range prefixes {
 				if strings.HasPrefix(name, prefix) {
-					if err := os.Remove(filepath.Join(dir, name)); err == nil {
-						removed++
-					}
+					add(filepath.Join(dir, name))
 					break
 				}
 			}
 		}
 	}
-
 	for _, event := range events {
-		for _, path := range []string{event.LocalSnapshotPath, event.LocalClipPath} {
-			if path == "" {
-				continue
-			}
-			if err := os.Remove(path); err == nil {
-				removed++
-			}
+		add(event.LocalSnapshotPath)
+		add(event.LocalClipPath)
+	}
+	return paths
+}
+
+// removeLocalCameraMedia deletes this camera's files under the media tree —
+// every path `cameraMediaPaths` names, counting the ones that actually left
+// the disk. The slug sweep inside that walk catches what the rows do not
+// name: a segment ffmpeg wrote and the CSV never reported, the CSV itself, a
+// segment written after a crash. A camera deleted with files still under
+// SEGMENTS_DIR is disk that nothing will ever reclaim, because the sweeper
+// walks rows, not directories.
+//
+// Only files whose name starts with the slug are touched. The slug is
+// `[a-z0-9][a-z0-9-]{1,31}`, so it cannot contain a path separator, and matching
+// by prefix is what keeps this from becoming a recursive delete over a directory
+// shared with other cameras.
+func (h *Handlers) removeLocalCameraMedia(camera *models.Camera, segments []models.Segment, events []models.Event) int {
+	removed := 0
+	for _, path := range h.cameraMediaPaths(camera, segments, events) {
+		if err := os.Remove(path); err == nil {
+			removed++
 		}
 	}
 	return removed

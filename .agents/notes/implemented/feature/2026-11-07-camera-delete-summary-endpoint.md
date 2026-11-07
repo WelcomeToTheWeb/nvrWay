@@ -1,0 +1,18 @@
+# Agent Note: camera-delete-summary-endpoint
+
+Status: implemented
+
+## Problem
+
+The console's only destructive control — deleting a camera — must confirm with the size of what it destroys: segment rows, event rows, local files, and queued remote purge jobs. The card left open whether the confirmation should assemble this from two list reads the console already knows, or ask the server. The list endpoints cannot answer two of the four counts: local files include orphans the slug sweep catches but no row names (an unreported segment, the recorder CSV), and whether a storage tier exists at all is not visible from the console. A confirmation that undercounts an irreversible act is worse than none.
+
+## Decision
+
+`GET /api/v1/cameras/:id/delete-summary` (admin — registered on the same `RequireRole(RoleAdmin)` group as `DELETE /:id`, because the counts describe a destruction only that role may cause) answers `{camera_id, slug, segments, events, local_files, remote_jobs, storage_tier}`. It is the delete's arithmetic minus the destruction: the same `allSegmentsFor`/`allEventsFor` walks, `local_files` counted as the paths of `cameraMediaPaths` that `os.Stat` finds, `remote_jobs` from the same `Uploaded()`/`SnapshotUploaded()`/`ClipUploaded()` flags `enqueueCameraPurge` keys its jobs off. `cameraMediaPaths` (cameras.go) is the single deduped file walk — segment rows' paths, the slug-prefix sweep over SegmentsDir/ClipsDir/SnapshotsDir, event snapshot/clip paths — and `removeLocalCameraMedia` now iterates it, so summary and destruction cannot drift. `storage_tier: false` (no default backend) forces `remote_jobs: 0` and tells the dialog to say "no storage tier is configured: nothing remote to purge" rather than a bare zero that reads as "nothing was uploaded". The console (`DeleteCamera` in CamerasPage.tsx) fetches the summary on button press, renders a `role="alertdialog"` naming all four counts, shows `serverWords(error, …)` on refusal, and on success reloads the list and navigates to `/cameras` (the address bar must not keep naming a deleted camera). NOT done: the summary is not audited (a read), and the counts are a moment's truth — recording continues, so the delete's own response remains the record of what actually went.
+## Alternatives considered
+
+Two client reads (`GET /segments?camera_id=`, `GET /events?camera_id=`): loses — cannot name local_files (the orphan-file case is exactly what the delete's sweep exists for) and cannot distinguish "no tier" from "nothing uploaded"; the dialog would lie about an irreversible act. Soft archive instead of delete: rejected by the card itself — `active:false` already exists and is the reversible answer; delete stays the irreversible one and the console must not blur the two. Counting local files as "rows with a Path" without the disk stat: rejected — a row whose file was already swept would inflate the promise; the summary must name files that exist, since that is what the delete can actually remove.
+## Consequences
+
+Bought: the confirmation and the audit row tell the same story (same field names as the delete response); one file walk means summary/delete drift is structurally impossible; the Go test asserts the summary's four counts equal what the subsequent DELETE reports on the same fixture. Cost: one more admin route to keep in sync with the delete's semantics if the purge logic ever changes (the shared helpers are the mitigation); the dialog's counts can be stale by the time the operator clicks (accepted — the delete response is the truth, the dialog is the server's best answer at ask-time). Test debt paid down: the web suite gained a LocationProbe because closing the editor via list-reload alone hid a stale `/cameras/:id` address bar from the test.
+

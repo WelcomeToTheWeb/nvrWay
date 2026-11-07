@@ -78,6 +78,23 @@ export interface CameraView {
   updated_at: string;
 }
 
+/** `GET /api/v1/cameras/:id/delete-summary` — the delete's arithmetic
+ * without the destruction (S8-13). The confirmation dialog names these four
+ * counts because they are what `DELETE` destroys, and it asks the server
+ * rather than guessing from list pages: the delete's slug sweep catches files
+ * no row names, so only the server can say how much disk goes with a camera.
+ * `storage_tier` distinguishes "nothing was uploaded" from "there is no
+ * tier" — a bare zero would let the dialog lie about the remote half. */
+export interface CameraDeleteSummary {
+  camera_id: string;
+  slug: string;
+  segments: number;
+  events: number;
+  local_files: number;
+  remote_jobs: number;
+  storage_tier: boolean;
+}
+
 /** The fields `cameraInput` accepts. Every one is a pointer, so a write sends
  * only what the operator touched and the server's defaults own the rest. */
 export interface CameraWrite {

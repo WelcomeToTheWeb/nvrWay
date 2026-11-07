@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 24 | 95 |
+| 0 | 0 | 1 | 23 | 96 |
 
 Total cards: **120**. In Progress limit: **2**.
 
@@ -37,7 +37,6 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S8-12`](kanban/cards/S8-12.md) | Playwright specs: auth, live, cameras, events, storage | S8-11, S10-02, S9-08 |
-| [`S8-13`](kanban/cards/S8-13.md) | "CamerasPage: delete a camera (admin) with a confirmation that names the footage" | S8-07, S8-09, S3-03 |
 
 ### Step 9 — Containers, compose, scripts, CI
 
@@ -215,6 +214,7 @@ _empty_
 | [`S8-09`](kanban/cards/S8-09.md) | AuditPage + routes/nav role gating | S8-02, S2-09 |
 | [`S8-10`](kanban/cards/S8-10.md) | "realtime.ts: zustand store over /ws?token= with backoff + stale banner" | S8-02, S2-10 |
 | [`S8-11`](kanban/cards/S8-11.md) | Console suite: vitest + @testing-library (behavior, no snapshots) | S8-02, S8-05, S8-06, S8-07, S8-10 |
+| [`S8-13`](kanban/cards/S8-13.md) | "CamerasPage: delete a camera (admin) with a confirmation that names the footage" | S8-07, S8-09, S3-03 |
 
 ### Process — Repo mechanics
 

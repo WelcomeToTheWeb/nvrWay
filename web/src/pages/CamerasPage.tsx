@@ -26,7 +26,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useMatch, useNavigate } from 'react-router-dom';
 
 import client, { serverWords } from '../api/client';
-import { RECORD_MODES, type CameraView, type CameraWrite, type Zone } from '../api/cameras';
+import {
+  type CameraDeleteSummary,
+  RECORD_MODES,
+  type CameraView,
+  type CameraWrite,
+  type Zone,
+} from '../api/cameras';
 import { useAuth } from '../auth/context';
 import { useRealtime } from '../stores/realtime';
 import ZoneEditor from '../components/ZoneEditor';
@@ -71,8 +77,13 @@ export default function CamerasPage() {
   const [page, setPage] = useState<PageState>({ kind: 'reading' });
   const match = useMatch('/cameras/:id');
   const selectedId = match?.params.id ?? null;
-  const { hasAnyRole } = useAuth();
+  const { hasAnyRole, hasRole } = useAuth();
   const canWrite = hasAnyRole(['operator', 'admin']);
+  // Delete is the one control the route answers only for admin — deleting a
+  // camera destroys its footage ledger — so the button stands on that floor
+  // and no other. A destructive control shown to a role the server refuses
+  // teaches the operator that the console's buttons lie.
+  const canDelete = hasRole('admin');
 
   const load = useCallback(() => {
     setPage({ kind: 'reading' });
@@ -121,7 +132,14 @@ export default function CamerasPage() {
         </ul>
       ) : null}
 
-      {selected ? <CameraEditor camera={selected} canWrite={canWrite} onChanged={load} /> : null}
+      {selected ? (
+        <CameraEditor
+          camera={selected}
+          canWrite={canWrite}
+          canDelete={canDelete}
+          onChanged={load}
+        />
+      ) : null}
 
       {canWrite ? <NewCameraForm onCreated={load} /> : null}
     </main>
@@ -169,10 +187,12 @@ function CameraRow({ camera }: { camera: CameraView }) {
 function CameraEditor({
   camera,
   canWrite,
+  canDelete,
   onChanged,
 }: {
   camera: CameraView;
   canWrite: boolean;
+  canDelete: boolean;
   onChanged(): void;
 }) {
   const navigate = useNavigate();
@@ -372,7 +392,142 @@ function CameraEditor({
           }}
         />
       </div>
+
+      {canDelete ? (
+        <DeleteCamera
+          camera={camera}
+          onDeleted={() => {
+            // The row is gone: reload the list so it stops showing it, and
+            // leave the editor, because there is nothing left to edit.
+            onChanged();
+            navigate('/cameras');
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/** The console's only destructive control, and the reason it is a section
+ * and not a button: `DELETE /api/v1/cameras/:id` removes the camera's event
+ * and segment rows, its local files, and queues jobs that delete the remote
+ * copies — an act nothing undoes. So the confirmation names the size of it,
+ * in counts the server itself counted (`GET /:id/delete-summary`: the same
+ * row walks and the same slug sweep the delete performs, not a guess from
+ * the list pages), and the refusal's own sentence is what shows when the
+ * server says no. */
+function DeleteCamera({ camera, onDeleted }: { camera: CameraView; onDeleted(): void }) {
+  const [summary, setSummary] = useState<CameraDeleteSummary | 'reading' | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const ask = () => {
+    setSummary('reading');
+    setFailed(null);
+    void client
+      .get<CameraDeleteSummary>(`/v1/cameras/${camera.id}/delete-summary`)
+      .then((response) => setSummary(response.data))
+      .catch((error: unknown) => {
+        setSummary(null);
+        setFailed(serverWords(error, 'the size of this delete is unreadable'));
+      });
+  };
+
+  const confirm = async () => {
+    setDeleting(true);
+    try {
+      await client.delete(`/v1/cameras/${camera.id}`);
+      onDeleted();
+    } catch (error) {
+      setDeleting(false);
+      // The server's sentence, not ours: a 403 or a 500 from this route says
+      // what stopped, and inventing a friendlier one would hide it.
+      setFailed(serverWords(error, 'the camera could not be deleted'));
+    }
+  };
+
+  return (
+    <div className="mt-6 border-t border-rule pt-4">
+      <h3 className="font-cap text-sm uppercase tracking-cap text-status-error">Danger zone</h3>
+
+      {summary === null ? (
+        <>
+          <p className="mt-1 font-mono text-xs text-text-secondary">
+            deleting removes the camera, its events and segments, its files on this box, and the
+            copies on the storage tier. nothing undoes it.
+          </p>
+          <button
+            type="button"
+            onClick={ask}
+            className="mt-2 border border-status-error px-3 py-1 font-cap text-xs uppercase tracking-cap text-status-error"
+          >
+            delete this camera
+          </button>
+        </>
+      ) : null}
+
+      {summary === 'reading' ? (
+        <p className="mt-1 font-mono text-xs text-text-secondary">
+          counting what this delete destroys.
+        </p>
+      ) : null}
+
+      {failed ? (
+        <>
+          <p role="alert" className="mt-1 font-mono text-xs text-status-error">
+            {failed}
+          </p>
+          <button
+            type="button"
+            onClick={ask}
+            className="mt-2 border border-rule px-3 py-1 font-mono text-xs text-text-secondary"
+          >
+            ask the server again
+          </button>
+        </>
+      ) : null}
+
+      {summary && summary !== 'reading' ? (
+        <div
+          role="alertdialog"
+          aria-label={`confirm deleting the camera ${camera.slug}`}
+          className="mt-2 border border-status-error bg-bg-secondary p-3"
+        >
+          <p className="text-sm text-text-primary">
+            Deleting <span className="font-mono">{camera.slug}</span> destroys{' '}
+            <span className="font-mono">{summary.segments}</span> segments,{' '}
+            <span className="font-mono">{summary.events}</span> events, and{' '}
+            <span className="font-mono">{summary.local_files}</span> local files.{' '}
+            {summary.storage_tier ? (
+              <>
+                It queues <span className="font-mono">{summary.remote_jobs}</span> remote purge
+                jobs on the storage tier.
+              </>
+            ) : (
+              'No storage tier is configured: nothing remote to purge.'
+            )}
+          </p>
+          <div className="mt-3 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setSummary(null)}
+              disabled={deleting}
+              className="border border-rule px-3 py-1 font-cap text-xs uppercase tracking-cap text-text-secondary"
+            >
+              keep it
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirm()}
+              disabled={deleting}
+              className="border border-status-error bg-status-error px-3 py-1 font-cap text-xs uppercase tracking-cap text-bg-primary disabled:opacity-50"
+            >
+              {deleting ? 'deleting' : `delete ${camera.slug}`}
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

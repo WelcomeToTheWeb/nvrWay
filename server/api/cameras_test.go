@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -635,6 +636,163 @@ func TestCamerasDeleteRemovesRowsLocalMediaAndQueuesTheRemotePurge(t *testing.T)
 	}
 	if details["remote_jobs"] != float64(1) {
 		t.Fatalf("the row says what was queued: %v", details)
+	}
+}
+
+// TestCameraDeleteSummaryNamesWhatTheDeleteWillDestroy: the confirmation
+// dialog reads `GET /:id/delete-summary` before an operator confirms, so the
+// counts it names must be the counts the delete then reports — the same
+// arithmetic, minus the destruction.
+func TestCameraDeleteSummaryNamesWhatTheDeleteWillDestroy(t *testing.T) {
+	fx := newCameraFixture(t)
+
+	backend := &models.StorageBackend{
+		Name: "local-tier", Kind: models.StorageKindFS, Enabled: true, IsDefault: true,
+		RootPath: t.TempDir(),
+	}
+	if err := fx.Store.StorageBackends.Create(backend); err != nil {
+		t.Fatalf("creating the storage tier: %v", err)
+	}
+
+	id := createdCameraID(t, fx, cameraBody("front-door", "rtsp://cam:554/live"), fx.OperatorTok)
+
+	recorded := &models.Segment{
+		ID: "seg-remote", CameraID: id, Generation: 1,
+		Path:    filepath.Join(fx.SegmentsDir, "front-door-1-0.mp4"),
+		StartTS: time.Now().UTC().Add(-time.Minute), EndTS: time.Now().UTC().Add(-55 * time.Second),
+		Seconds: 5, Bytes: 1024, Kind: models.SegmentKindContinuous,
+	}
+	if err := fx.Store.Segments.Create(recorded); err != nil {
+		t.Fatalf("creating the segment: %v", err)
+	}
+	if err := fx.Store.Segments.MarkUploaded(recorded.ID, "nvr/front-door/2026/11/02/front-door-1-0.mp4"); err != nil {
+		t.Fatalf("marking it uploaded: %v", err)
+	}
+	local := &models.Segment{
+		ID: "seg-local", CameraID: id, Generation: 1,
+		Path:    filepath.Join(fx.SegmentsDir, "front-door-1-1.mp4"),
+		StartTS: time.Now().UTC(), EndTS: time.Now().UTC().Add(5 * time.Second),
+		Seconds: 5, Bytes: 512, Kind: models.SegmentKindContinuous,
+	}
+	if err := fx.Store.Segments.Create(local); err != nil {
+		t.Fatalf("creating the local segment: %v", err)
+	}
+
+	// One event with an uploaded snapshot and a clip that never left the box.
+	ctx := context.Background()
+	event, _, err := fx.Store.Events.UpsertByEventKey(ctx, store.EventInput{
+		EventKey: "sum-1", CameraID: id, Action: models.SignalActionOpen,
+		Rule: "intrusion", Severity: 2, TS: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("filing the event: %v", err)
+	}
+	snap := filepath.Join(fx.SnapshotsDir, "sum-1.jpg")
+	clip := filepath.Join(fx.ClipsDir, "sum-1.mp4")
+	if err := fx.Store.Events.SetLocalSnapshot(event.ID, snap); err != nil {
+		t.Fatalf("setting the snapshot: %v", err)
+	}
+	if err := fx.Store.Events.MarkSnapshotUploaded(event.ID, "nvr/events/sum-1/snapshot.jpg"); err != nil {
+		t.Fatalf("marking the snapshot uploaded: %v", err)
+	}
+	if err := fx.Store.Events.SetLocalClip(event.ID, clip, 10); err != nil {
+		t.Fatalf("setting the clip: %v", err)
+	}
+
+	for _, path := range []string{recorded.Path, local.Path, snap, clip,
+		filepath.Join(fx.SegmentsDir, "front-door-9-9.mp4"), // written, never reported
+		filepath.Join(fx.SegmentsDir, "front-door.csv"),     // the recorder's list
+		filepath.Join(fx.SegmentsDir, "back-patio-1-0.mp4"), // another camera's
+	} {
+		if err := os.WriteFile(path, []byte("bytes"), 0o644); err != nil {
+			t.Fatalf("writing %s: %v", path, err)
+		}
+	}
+
+	status, sum, raw := do(t, fx.Router, request{
+		method: http.MethodGet, path: "/api/v1/cameras/" + id + "/delete-summary", bearer: fx.AdminTok,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("summary: %d %s", status, raw)
+	}
+	// 2 segments, 1 event; 6 files (2 segment rows, the orphan, the CSV, the
+	// snapshot, the clip); 2 remote jobs (the uploaded segment, the uploaded
+	// snapshot — the local clip has nothing remote to purge).
+	for field, want := range map[string]float64{
+		"segments": 2, "events": 1, "local_files": 6, "remote_jobs": 2,
+	} {
+		if sum[field] != want {
+			t.Fatalf("summary %s = %v, want %v (%s)", field, sum[field], want, raw)
+		}
+	}
+	if sum["storage_tier"] != true || sum["slug"] != "front-door" {
+		t.Fatalf("the summary names the camera and its tier: %s", raw)
+	}
+
+	// The delete then destroys exactly what the summary named.
+	status, out, raw := do(t, fx.Router, request{method: http.MethodDelete, path: "/api/v1/cameras/" + id, bearer: fx.AdminTok})
+	if status != http.StatusOK {
+		t.Fatalf("delete: %d %s", status, raw)
+	}
+	for _, field := range []string{"segments", "events", "local_files", "remote_jobs"} {
+		if out[field] != sum[field] {
+			t.Fatalf("the delete destroyed %v of %s; the dialog said %v", out[field], field, sum[field])
+		}
+	}
+}
+
+func TestCameraDeleteSummaryWithoutATierSaysThereIsNothingRemote(t *testing.T) {
+	fx := newCameraFixture(t)
+	id := createdCameraID(t, fx, cameraBody("front-door", "rtsp://cam:554/live"), fx.OperatorTok)
+
+	seg := &models.Segment{
+		ID: "seg-1", CameraID: id, Generation: 1,
+		Path:    filepath.Join(fx.SegmentsDir, "front-door-1-0.mp4"),
+		StartTS: time.Now().UTC(), EndTS: time.Now().UTC().Add(5 * time.Second),
+		Seconds: 5, Bytes: 512, Kind: models.SegmentKindContinuous,
+	}
+	if err := fx.Store.Segments.Create(seg); err != nil {
+		t.Fatalf("creating the segment: %v", err)
+	}
+
+	status, sum, raw := do(t, fx.Router, request{
+		method: http.MethodGet, path: "/api/v1/cameras/" + id + "/delete-summary", bearer: fx.AdminTok,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("summary: %d %s", status, raw)
+	}
+	// A zero here must read as "no tier", not as "nothing uploaded": the flag
+	// is what tells the dialog which sentence to draw.
+	if sum["storage_tier"] != false || sum["remote_jobs"] != float64(0) {
+		t.Fatalf("a local-only install says so: %s", raw)
+	}
+}
+
+func TestCameraDeleteSummaryIsAdminOnly(t *testing.T) {
+	fx := newCameraFixture(t)
+	id := createdCameraID(t, fx, cameraBody("front-door", "rtsp://cam:554/live"), fx.OperatorTok)
+
+	// The counts describe a destruction only admin may cause; the route that
+	// answers them stands on the delete's floor.
+	for name, tok := range map[string]string{"viewer": fx.ViewerTok, "operator": fx.OperatorTok} {
+		status, _, _ := do(t, fx.Router, request{
+			method: http.MethodGet, path: "/api/v1/cameras/" + id + "/delete-summary", bearer: tok,
+		})
+		if status != http.StatusForbidden {
+			t.Fatalf("%s: status = %d, want 403", name, status)
+		}
+	}
+	status, _, _ := do(t, fx.Router, request{method: http.MethodGet, path: "/api/v1/cameras/" + id + "/delete-summary"})
+	if status != http.StatusUnauthorized {
+		t.Fatalf("anonymous: status = %d, want 401", status)
+	}
+
+	// And the unknown id answers like every other camera route.
+	status, _, _ = do(t, fx.Router, request{
+		method: http.MethodGet, path: "/api/v1/cameras/no-such-camera/delete-summary", bearer: fx.AdminTok,
+	})
+	if status != http.StatusNotFound {
+		t.Fatalf("unknown camera: status = %d, want 404", status)
 	}
 }
 

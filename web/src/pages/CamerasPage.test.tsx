@@ -8,12 +8,12 @@
  * normalisation, and the ledger would say the frame rate changed. The test fails
  * the moment someone "simplifies" the body into a spread.
  */
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import client from '../api/client';
-import type { CameraView, Zone } from '../api/cameras';
+import type { CameraDeleteSummary, CameraView, Zone } from '../api/cameras';
 import { AuthProvider } from '../auth/context';
 import { __resetMediaCache } from '../api/media';
 import { useRealtime } from '../stores/realtime';
@@ -84,7 +84,28 @@ function server(cameras: CameraView[], over: Partial<Record<string, Scripted>> =
     if (call.method === 'post' && call.url === '/v1/cameras') {
       return over.create ?? { status: 201, data: camera({ id: 'c2', slug: 'gate' }) };
     }
+    if (call.method === 'get' && call.url === '/v1/cameras/c1/delete-summary') {
+      return over.deleteSummary ?? { status: 200, data: deleteSummary() };
+    }
+    if (call.method === 'delete' && call.url === '/v1/cameras/c1') {
+      return over.delete ?? { status: 200, data: { deleted: 'c1', slug: 'porch' } };
+    }
     return { status: 404, data: { error: `unexpected ${call.method} ${call.url}` } };
+  };
+}
+
+/** The server's own counts for the confirmation dialog (S8-13): the delete's
+ * arithmetic, answered before the fact by `GET /:id/delete-summary`. */
+function deleteSummary(over: Partial<CameraDeleteSummary> = {}): CameraDeleteSummary {
+  return {
+    camera_id: 'c1',
+    slug: 'porch',
+    segments: 3,
+    events: 2,
+    local_files: 11,
+    remote_jobs: 4,
+    storage_tier: true,
+    ...over,
   };
 }
 
@@ -96,6 +117,7 @@ function renderAt(entry: string, roles: string[] = ['operator']) {
   return render(
     <MemoryRouter initialEntries={[entry]}>
       <AuthProvider>
+        <LocationProbe />
         <Routes>
           <Route path="/cameras" element={<CamerasPage />} />
           <Route path="/cameras/:id" element={<CamerasPage />} />
@@ -103,6 +125,13 @@ function renderAt(entry: string, roles: string[] = ['operator']) {
       </AuthProvider>
     </MemoryRouter>,
   );
+}
+
+/** The address bar, as a test can read it: a delete that closes the editor
+ * but leaves `/cameras/c1` in the bar lands the next reload on a dead URL. */
+function LocationProbe() {
+  const { pathname } = useLocation();
+  return <p data-testid="location">{pathname}</p>;
 }
 
 beforeEach(() => {
@@ -297,6 +326,93 @@ describe('CamerasPage — a viewer reads', () => {
     expect(await screen.findByText('your role can read cameras, not change them')).toBeTruthy();
     expect(screen.getByText('your role can read zones, not change them')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'save row' })).toBeNull();
+    h.restore();
+  });
+});
+
+describe('CamerasPage — the delete is admin’s, and the confirmation counts', () => {
+  it('an operator is not offered the delete the route would refuse', async () => {
+    const h = attachHarness(server([camera()]));
+    renderAt('/cameras/c1', ['operator']);
+    await screen.findByRole('button', { name: 'back to the list' });
+
+    // The route answers 403 for operator; a destructive control shown to a
+    // role the server refuses teaches that the console's buttons lie.
+    expect(screen.queryByRole('button', { name: 'delete this camera' })).toBeNull();
+    expect(h.calls.some((c) => c.url.includes('delete-summary'))).toBe(false);
+    h.restore();
+  });
+
+  it('the confirmation names the counts the server counted — never a bare are-you-sure', async () => {
+    const h = attachHarness(server([camera()]));
+    renderAt('/cameras/c1', ['admin']);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'delete this camera' }));
+    const dialog = await screen.findByRole('alertdialog');
+    // The counts are the server's, from its own read — not the page's guess.
+    expect(h.calls.some((c) => c.url === '/v1/cameras/c1/delete-summary')).toBe(true);
+    expect(dialog.textContent).toContain('3 segments');
+    expect(dialog.textContent).toContain('2 events');
+    expect(dialog.textContent).toContain('11 local files');
+    expect(dialog.textContent).toContain('4 remote purge jobs');
+    h.restore();
+  });
+
+  it('no tier says nothing remote to purge, instead of a bare zero', async () => {
+    const h = attachHarness(
+      server([camera()], {
+        deleteSummary: { status: 200, data: deleteSummary({ storage_tier: false, remote_jobs: 0 }) },
+      }),
+    );
+    renderAt('/cameras/c1', ['admin']);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'delete this camera' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('No storage tier is configured');
+    h.restore();
+  });
+
+  it('the refusal’s own sentence is what shows when the server says no', async () => {
+    const h = attachHarness(
+      server([camera()], {
+        delete: { status: 403, data: { error: 'your role cannot delete cameras' } },
+      }),
+    );
+    renderAt('/cameras/c1', ['admin']);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'delete this camera' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'delete porch' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('your role cannot delete cameras');
+    // A refused delete changes nothing: the editor is still on screen.
+    expect(screen.getByRole('button', { name: 'back to the list' })).toBeTruthy();
+    h.restore();
+  });
+
+  it('a deleted camera leaves no row in the list and no editor on screen', async () => {
+    const cams = [camera()];
+    const h = attachHarness((call) => {
+      if (call.method === 'delete' && call.url === '/v1/cameras/c1') {
+        cams.length = 0; // the row is gone from the server's world now
+        return { status: 200, data: { deleted: 'c1', slug: 'porch' } };
+      }
+      return server(cams)(call);
+    });
+    renderAt('/cameras/c1', ['admin']);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'delete this camera' }));
+    const dialog = await screen.findByRole('alertdialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'delete porch' }));
+
+    // The editor closes — there is nothing left to edit — the address bar
+    // stops naming a camera that no longer exists, and the reloaded list no
+    // longer carries the row.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'back to the list' })).toBeNull());
+    expect(screen.getByTestId('location').textContent).toBe('/cameras');
+    expect(await screen.findByRole('heading', { name: 'Cameras' })).toBeTruthy();
+    expect(screen.queryByText('Porch')).toBeNull();
     h.restore();
   });
 });
