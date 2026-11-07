@@ -1,11 +1,5 @@
 # nvrWay — API Reference
 
-<!-- skeleton: S0-02 (2026-11-02). The route groups Step 2/3/6/7 + the internal
-     worker contract of Step 5. Each section names the shape its route table
-     must state. Filled by S9-10; the routes themselves arrive with the cards
-     cited per section. Today the only route that exists is GET /health
-     (server/router.go). -->
-
 Base path `/api/v1` for the operator surface, `/api/auth` + `/api/settings`
 for session and admin config, `/api/internal/v1` for the detection worker.
 Every response shape below is the shape the console and `scripts/verify.sh`
@@ -13,7 +7,12 @@ depend on.
 
 ## Table of Contents
 
-List the sections below once they have content.
+[Authentication](#authentication) · [SSO (OIDC)](#sso-oidc) · [Roles and the role floor](#roles-and-the-role-floor) ·
+[Users, roles and identities](#users-roles-and-identities-admin) · [Cameras](#cameras) ·
+[Segments](#segments--the-timeline-manifest) · [Events](#events) · [Storage](#storage-backends-queue-and-prefixes) ·
+[Webhooks](#webhooks) · [Settings](#settings) · [Audit](#audit) · [Health](#health) ·
+[Internal worker contract](#internal-worker-contract-apiinternalv1) · [WebSocket](#websocket) ·
+[Error format](#error-format) · [Rate limiting](#rate-limiting) · [Testing with curl](#api-testing-with-curl)
 
 ## Authentication
 

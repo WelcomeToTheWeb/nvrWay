@@ -23,6 +23,22 @@ this same table as an env file.
 | `GO2RTC_RESTART_TIMEOUT` | `60s` | bound on the recreate itself |
 | `GO2RTC_RESTART_SETTLE` | `2s` | grace before the first probe of the live stream map |
 | `GO2RTC_RESTART_PROBE_BUDGET` | `30s` | bound on waiting for the streams to appear |
+| `WORKER_TOKEN` | empty → internal API disabled | bearer for `/api/internal/*` |
+| `BOOTSTRAP_ADMIN_USER`/`BOOTSTRAP_ADMIN_PASSWORD` | `admin` / empty | empty password = no local admin created |
+| `OIDC_ISSUER`,`OIDC_CLIENT_ID`,`OIDC_CLIENT_SECRET` | empty | seeds provider row `oidc` on first boot (discovery at boot; failure logs, never fatal) |
+| `OIDC_ROLE_CLAIM`, `OIDC_ROLE_MAPPING` | `groups`, `""` | claim name + `group=role,group=role` |
+| `SEGMENT_SECONDS` | `5` | segment length |
+| `PRE_ROLL_SECONDS`/`POST_ROLL_SECONDS` | `8`/`15` | event clip window — served to the console by `GET /api/v1/settings/media`, so the drawer's strip spans the padded window instead of guessing (P-11) |
+| `EVENT_MAX_SECONDS` | `300` | forced event close |
+| `LOCAL_RETENTION_DAYS` | `14` | global default retention |
+| `REMOTE_RETENTION_DAYS` | `30` | 0 = keep remote forever |
+| `EVENT_RETENTION_DAYS` | `90` | event rows + media age-out |
+| `UPLOADER_TICK_SECONDS` | `30` | upload queue tick |
+| `RATE_LIMIT_PER_MINUTE`/`RATE_LIMIT_BURST` | `120`/`0` | per-user REST budget (burst 0 = a tenth) |
+| `WS_ORIGINS`, `WEB_URL` | `""`, `http://localhost:3000` | WS origin guard, console origin |
+| `PUBLIC_BASE_URL` | empty → `http://localhost:8080` | the origin a **receiver** dials; builds the webhook payload's `snapshot_url` and `clip_url` |
+| `DET_PROVIDERS` | `CPUExecutionProvider` | forwarded in the detector config payload |
+| `TZ` | `UTC` | — |
 
 ## The go2rtc restart (S3-07)
 
@@ -54,22 +70,6 @@ tier it lives beside.
 - A restart failure is its own answer: `502` with `config_applied: true`,
   `sidecar_restarted: false` and compose's own words. The camera row stays, the
   next write repairs it, and the ledger has the attempt.
-| `WORKER_TOKEN` | empty → internal API disabled | bearer for `/api/internal/*` |
-| `BOOTSTRAP_ADMIN_USER`/`BOOTSTRAP_ADMIN_PASSWORD` | `admin` / empty | empty password = no local admin created |
-| `OIDC_ISSUER`,`OIDC_CLIENT_ID`,`OIDC_CLIENT_SECRET` | empty | seeds provider row `oidc` on first boot (discovery at boot; failure logs, never fatal) |
-| `OIDC_ROLE_CLAIM`, `OIDC_ROLE_MAPPING` | `groups`, `""` | claim name + `group=role,group=role` |
-| `SEGMENT_SECONDS` | `5` | segment length |
-| `PRE_ROLL_SECONDS`/`POST_ROLL_SECONDS` | `8`/`15` | event clip window — served to the console by `GET /api/v1/settings/media`, so the drawer's strip spans the padded window instead of guessing (P-11) |
-| `EVENT_MAX_SECONDS` | `300` | forced event close |
-| `LOCAL_RETENTION_DAYS` | `14` | global default retention |
-| `REMOTE_RETENTION_DAYS` | `30` | 0 = keep remote forever |
-| `EVENT_RETENTION_DAYS` | `90` | event rows + media age-out |
-| `UPLOADER_TICK_SECONDS` | `30` | upload queue tick |
-| `RATE_LIMIT_PER_MINUTE`/`RATE_LIMIT_BURST` | `120`/`0` | per-user REST budget (burst 0 = a tenth) |
-| `WS_ORIGINS`, `WEB_URL` | `""`, `http://localhost:3000` | WS origin guard, console origin |
-| `PUBLIC_BASE_URL` | empty → `http://localhost:8080` | the origin a **receiver** dials; builds the webhook payload's `snapshot_url` and `clip_url` |
-| `DET_PROVIDERS` | `CPUExecutionProvider` | forwarded in the detector config payload |
-| `TZ` | `UTC` | — |
 
 ### Why `PUBLIC_BASE_URL` exists, and what an empty value costs
 
@@ -83,6 +83,8 @@ address this server cannot know from the inside:
   instance outside that compose network;
 - `GO2RTC_PUBLIC_URL` is the browser-facing base for *live view*, which is a
   different process on a different port.
+
+## The sidecar API is a trusted-LAN service (P-14)
 
 **The sidecar API is a trusted-LAN service (P-14).** Setting
 `GO2RTC_USERNAME`/`GO2RTC_PASSWORD` makes the server render them into the

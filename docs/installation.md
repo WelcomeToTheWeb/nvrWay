@@ -1,33 +1,52 @@
 # nvrWay — Installation Guide
 
-<!-- skeleton: S0-02 (2026-11-02). Headings, each naming what it must state.
-     Content is card S9-10; the commands are the harness names of S9-08. -->
-
 Self-hosted install of nvrWay v1: one server, one Postgres, one go2rtc, one
 detection worker, one console. Target scale 4–8 cameras on one machine.
 
 ## Table of Contents
 
-List the sections below once they have content.
+[Prerequisites](#prerequisites) · [1. Get the images](#1-get-the-images) ·
+[2. Generate the secrets](#2-generate-the-secrets) · [3. Write the `.env`](#3-write-the-env) ·
+[4. Start the stack](#4-start-the-stack) · [5. First login](#5-first-login-the-break-glass-admin) ·
+[6. Camera setup](#6-camera-setup) · [7. OIDC provider setup](#7-oidc-provider-setup) ·
+[8. Storage tier setup](#8-storage-tier-setup) · [9. Webhooks](#9-webhooks) ·
+[10. Retention math](#10-retention-math) · [11. TLS and remote view](#11-tls-reverse-proxy-and-remote-view) ·
+[12. GPU overlay](#12-gpu-overlay-documented-not-verified-here) ·
+[13. Verify](#13-verify-the-installation) · [14. Backup/upgrade/restore](#14-backup-upgrade-restore) ·
+[15. Uninstall](#15-uninstall) · [Troubleshooting](#troubleshooting)
 
 ## Prerequisites
 
-Docker + the compose plugin, ~4 vCPU and 4 GB for the CPU-ONNX baseline, a
-network the cameras can reach, and the host facts that matter: **no Go
-toolchain and no usable host Python are required — every build and test runs
-in an image**. State the GPU prerequisite as a prerequisite for the overlay
-only (NVIDIA container toolkit + `/dev/nvidia*` nodes).
+- Docker with the Compose v2 plugin (`docker compose version`).
+- **~4 vCPU and 4 GB** for the CPU-ONNX baseline of 4–8 cameras — the
+  detector's motion gate is what makes that number honest on quiet cameras
+  (see `docs/architecture.md` § Detection for the sizing basis).
+- A network the cameras can reach, and disk sized by
+  [§ 10](#10-retention-math) before you add the fourth camera.
+- **No Go toolchain and no usable host Python are required** — every build
+  and test in this repo runs in an image.
+- GPU (optional, for the overlay only): NVIDIA container toolkit on the host
+  and `/dev/nvidia*` nodes in the container's reach. Without them the CPU
+  path is the only supported one, and it is a supported one, not a consolation
+  prize. See [§ 12](#12-gpu-overlay-documented-not-verified-here).
 
 ## 1. Get the images
 
-`ghcr.io/welcometotheweb/nvr/{server,web,detector}` — `:latest` is a stable
-release, `:edge` follows `main`. Pin a tag for a fleet that must not move on
-its own. State the build-your-own path (`docker/docker-compose.yml` builds
-from source).
+```bash
+docker pull ghcr.io/welcometotheweb/nvr/server:latest
+docker pull ghcr.io/welcometotheweb/nvr/web:latest
+docker pull ghcr.io/welcometotheweb/nvr/detector:latest
+```
+
+`:latest` is a stable release; `:edge` follows `main`. Pin a tag for a fleet
+that must not move on its own. Build-your-own is first-class:
+`docker/docker-compose.yml` builds all three from this checkout (that is what
+`scripts/dev.sh` does), and the prod compose is the same services with
+`image:` instead of `build:`.
 
 ## 2. Generate the secrets
 
-The three values that must be random and secret, with the exact command:
+Three values must be random and secret:
 
 ```bash
 openssl rand -hex 32   # → JWT_SECRET
@@ -35,45 +54,100 @@ openssl rand -hex 32   # → NVR_SECRET_KEY
 openssl rand -hex 32   # → WORKER_TOKEN
 ```
 
-State what each one not being set costs: ephemeral sessions (JWT_SECRET),
-sealing key derived from JWT_SECRET so a rotation re-seals every backend
-(NVR_SECRET_KEY), internal API disabled — no detection, no heartbeat
-(WORKER_TOKEN).
+What each one *not* being set costs:
+
+- **`JWT_SECRET` empty** — every boot mints a fresh signing key: all sessions
+  die with the process, so a restart logs everyone out. Fine for a first
+  spin; set it before you rely on it.
+- **`NVR_SECRET_KEY` empty** — the sealing key is derived from `JWT_SECRET`,
+  so rotating `JWT_SECRET` later re-keys the seal and orphans every stored
+  storage-backend credential and webhook secret (they stay in the database,
+  unopenable; you retype them). Set it on the first boot and back it up with
+  `JWT_SECRET`.
+- **`WORKER_TOKEN` empty** — the internal API is **off**, not open:
+  `/api/internal/*` answers `403 {"error":"internal api disabled"}`. No
+  detection, no heartbeat, no events. The camera still records.
 
 ## 3. Write the `.env`
 
-`cp .env.example .env`, then the table in `docs/configuration.md`. Call out
-the deployment-only values: `DATABASE_URL` (Postgres), `DATA_DIR`,
-`WEB_URL`, and `GO2RTC_PUBLIC_URL` — **required in prod compose**, because it
-is the address the browser dials, not the server.
+```bash
+cp docker/.env.example .env
+```
+
+Every variable and its default is the table in
+[`docs/configuration.md`](configuration.md). The deployment-only values —
+the ones whose dev defaults are wrong for a real install:
+
+| Variable | Why it is deployment-only |
+|---|---|
+| `DATABASE_URL` | the default points at `localhost`; in compose it is `postgres://nvr:…@postgres:5432/nvr` |
+| `DATA_DIR` | the media tree; make it a volume you back up |
+| `WEB_URL` | the origin the console is served from — the WS origin guard and the OIDC redirect URI are both built from it |
+| `GO2RTC_PUBLIC_URL` | **required in prod compose** (compose refuses to start without it): it is the address the *browser* dials for live view, and the server cannot guess it from inside the container |
+| `PUBLIC_BASE_URL` | the address a webhook *receiver* dials; empty means the payload says `localhost` and every remote integration 404s |
 
 ## 4. Start the stack
 
 ```bash
+# production images:
 docker compose -f docker-compose.prod.yml up -d
 # dev, from a checkout:
 scripts/dev.sh            # compose up --build
 scripts/dev.sh --demo     # + a seeded demo camera, no hardware
 ```
 
-Console `:3000`, API `:8080`, go2rtc `:1984` (+ `8554` RTSP, `8555`
-WebRTC tcp/udp). State which of these may face a LAN and which must never
-face a WAN.
+What answers where:
+
+| Port | What | May face |
+|---|---|---|
+| `:3000` | console (nginx; proxies `/api` and `/ws` to the server) | the LAN; a WAN only behind TLS + auth (§ 11) |
+| `:8080` | server API + `/ws` | the LAN; never a bare WAN socket — it is plain HTTP |
+| `:1984` | go2rtc API (live view's `/api/ws`) | the LAN only — it is a **trusted-LAN service** (P-14): the browser cannot attach auth to a WebSocket, so this API is unauthenticated by design |
+| `:8554` / `:8555` | go2rtc RTSP / WebRTC | the LAN; cameras and browsers dial these directly |
+
+Nothing here needs to face a WAN. Remote view is a reverse proxy or a
+Tailscale interface (§ 11), not a port forward.
 
 ## 5. First login: the break-glass admin
 
 `BOOTSTRAP_ADMIN_USER` / `BOOTSTRAP_ADMIN_PASSWORD` seed one local admin on
-first boot, recorded in settings (S2-03). State where the generated password
-is found, why this account exists (so OIDC misconfiguration cannot lock you
-out of your own NVR), and how to stop it from being created.
+first boot (S2-03). The password is **the value you set in `.env`** — it is
+never generated for you, so there is nothing to go find in a log. The account
+exists so OIDC misconfiguration cannot lock you out of your own NVR: its
+password door is never closed by a link or a role edit, and deleting the last
+admin is refused.
+
+To stop it from being created: leave `BOOTSTRAP_ADMIN_PASSWORD` empty. An
+installation with working OIDC and no bootstrap password logs in only through
+its IdP — which is the right end state; do it once OIDC is verified, not
+before. An installation with neither has no way in, and the boot line says so
+rather than letting you discover it from a login form.
 
 ## 6. Camera setup
 
-Add a camera from the console (`slug`, name, `source_uri`, `record_mode`,
-detection fps/size), then probe it, then draw zones on its snapshot. State
-that **slug is the stream name** go2rtc will use, that a camera write
-re-renders go2rtc's config (so the config file is never hand-edited), and
-the `exec:…` source shape the demo camera uses.
+In the console: **Cameras → add**. The fields that matter:
+
+- **slug** — lower-case, and then **it is the go2rtc stream name forever**.
+  The console shows it and refuses to edit it, because renaming moves every
+  key the camera ever wrote (segments, tier objects, the tap).
+- **source_uri** — what go2rtc dials: `rtsp://user:pass@192.168.1.50:554/…`
+  for a real camera. The demo camera's `exec:…` shape (an ffmpeg feeding a
+  still image as a stream) is the seam the test suite and `--demo` use; it is
+  a supported source kind, not a hack.
+- **record_mode** — `continuous` (always recording), `events` (record only
+  around detections), `off` (live view only).
+- **detection fps/size** — the tap defaults (5 FPS, 640×360) are the sizing
+  basis; raising them costs CPU per camera.
+
+Then **probe** (the server asks the sidecar whether the stream is live), and
+**draw zones** on a real snapshot — zones are normalized coordinates, so they
+survive a tap resolution change.
+
+Two facts the UI cannot show you: a camera write **re-renders go2rtc's
+config** (so the config file is never hand-edited — your edit is gone on the
+next write), and the render only takes effect when the sidecar reboots, which
+the supervisor does for you (P-16) — a live tile may need a page reload
+right after a save.
 
 ## 7. OIDC provider setup
 
@@ -118,42 +192,126 @@ password door is never closed by a link (`GET /api/users/:id` reports
 
 ## 8. Storage tier setup
 
-Add an `fs` / `s3` / `webdav` / `sftp` backend, test the connection, set the
-default, enable upload. Worked examples: **MinIO** (path-style,
-`EnableSSL=false`, the dev compose's commented `minio` service), **Cloudflare
-R2** and **Backblaze B2** (path-style, region string, the prefix rules), an
-NFS mount as an `fs` root. State the key layout objects will appear under, and
-that a disabled backend stops the queue without losing jobs.
+Settings → Storage → add a backend (`fs` / `s3` / `webdav` / `sftp`), then
+**test** (the four answers: reachable, credentials, bucket/root present,
+writable), then **set default**, then **enable upload**. A disabled backend
+stops the queue without losing jobs — the rows wait.
+
+Worked examples:
+
+**MinIO** (self-hosted S3):
+
+```
+kind: s3   endpoint: minio:9000   bucket: nvr   prefix: ""
+access_key / secret_key: the service account
+region: us-east-1     force_path_style: true     enable_ssl: false
+```
+
+Path-style is the switch MinIO needs (its default vhost-style `bucket.host`
+naming does not resolve inside a compose network). The dev compose ships a
+commented `minio` service for exactly this test.
+
+**Cloudflare R2** and **Backblaze B2** (S3-compatible):
+
+```
+kind: s3   endpoint: <acct>.s3.<region>.r2.cloudflarestorage.com   (R2)
+           endpoint: s3.us-west-002.backblazeb2.com                (B2)
+bucket: <bucket name>     region: <the region string the provider names>
+access_key / secret_key: the app key
+force_path_style: true    enable_ssl: true
+```
+
+**NFS as `fs`**: mount the export on the host, pass it into the server
+container, and set the backend root to the mount point. The `fs` driver
+checks its root on the miss path, so an unmounted volume answers
+`bucket missing` (a 502) rather than pretending every clip was never recorded
+(a 404) — the distinction is documented in `docs/api.md`.
+
+Objects will appear under: `nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4` for
+segments, `nvr/events/<event_id>/clip` and `…/snapshot` for event media.
+Prefixes are per-backend and per-purpose (S7-06); the console shows the
+effective prefix per backend.
 
 ## 9. Webhooks
 
-Per-camera webhook, the secret, the payload, the `X-NVR-Signature` HMAC, and
-the delivery history the console shows (S6-07).
+Settings → Webhooks: a URL, an optional signing secret, and the cameras it
+fires for. The payload (full shape in `docs/api.md` § Webhooks) names the
+event, the camera, the window, and absolute `snapshot_url` / `clip_url` —
+which is why `PUBLIC_BASE_URL` must be the address the *receiver* dials.
+
+Every delivery carries `X-NVR-Signature: sha256=<hmac>` over the raw body
+with your secret; verify it before trusting the JSON (the api doc has the
+five-line check). Deliveries retry with backoff, the attempt history is in
+the console, and a slow receiver never blocks the event path — the send is
+off the request's critical path by design.
 
 ## 10. Retention math
 
-The table an operator can size a disk with: `SEGMENT_SECONDS`,
-`LOCAL_RETENTION_DAYS`, `REMOTE_RETENTION_DAYS` (`0` = keep remote forever),
-`EVENT_RETENTION_DAYS`, and the bytes-per-camera-per-day arithmetic for the
-target encode settings. State the un-uploaded protection window in plain
-words: **a storage outage never destroys the only copy.**
+The table you size a disk with, at the shipped encode defaults (H.264, the
+dev-stack `-b:v 2M`-class settings — your cameras' bitrates are the real
+variable):
+
+| Knob | Default | What it decides |
+|---|---|---|
+| `SEGMENT_SECONDS` | `5` | file size granularity; the CSV manifest and every window query round to this |
+| `LOCAL_RETENTION_DAYS` | `14` | how long the local tree holds footage |
+| `REMOTE_RETENTION_DAYS` | `30` | how long the tier holds it; **`0` = keep forever** |
+| `EVENT_RETENTION_DAYS` | `90` | how long event rows (and their clip/snapshot) age out |
+
+Arithmetic: `bytes/day ≈ bitrate × 86400`. At 2 Mbps that is ~21 GB per
+camera per day; 6 cameras × 14 days ≈ **1.8 TB local**, plus clips and
+snapshots (small next to the segments). Halve the bitrate, halve the disk.
+
+And the rule that makes unattended retention safe: **a storage outage never
+destroys the only copy — inside a stated window.** Un-uploaded footage is
+protected for `max(3 × LOCAL_RETENTION_DAYS, 7 days)`; past that the sweep
+force-deletes with a WARN, because a full disk stops recording everything.
+The window is in `docs/architecture.md` § Retention; the queue depth is on
+the Settings page.
 
 ## 11. TLS, reverse proxy and remote view
 
-TLS terminates at the proxy; the server listens on plain HTTP. State the
-proxy's WebSocket requirements (`/ws` upgrade, long read timeouts,
-`$http_host`), the origin guard (`WS_ORIGINS`/`WEB_URL`), and the answer for
-viewing from outside the LAN — reverse proxy or Tailscale — including what
-`GO2RTC_PUBLIC_URL` must become for live view to work there.
+TLS terminates at your proxy; the server listens on plain HTTP and stays
+that way. The proxy owes three things:
+
+1. **WebSocket upgrade for `/ws`** — `proxy_set_header Upgrade
+   $http_upgrade; proxy_set_header Connection "upgrade";` and long read
+   timeouts (the hub is a long-lived connection; a 60 s proxy timeout looks
+   exactly like a broken hub).
+2. **`$http_host`, not `$host`** — the server's same-origin checks (WS guard,
+   OIDC redirect building) compare origins including the port; `$host` drops
+   it and every check starts failing in ways that read as auth bugs.
+3. **The origin guard agrees with the proxy** — set `WEB_URL` to the public
+   origin (`https://cam.example.com`) and `WS_ORIGINS` to the same, or the
+   console's socket is refused while the REST calls work.
+
+Remote view from outside the LAN, in order of preference: **Tailscale** (zero
+exposed ports; set `GO2RTC_PUBLIC_URL` to the Tailscale address so the
+browser dials the sidecar there), or a reverse proxy with authentication at
+the proxy. What must change for live view to work remotely:
+`GO2RTC_PUBLIC_URL` becomes the address the remote browser can reach on
+`:1984` (proxied path or direct), and `:8554`/`:8555` (WebRTC media) must be
+reachable too — if ICE cannot connect, the tile says `unreachable` and the
+REST side keeps working, which is the diagnostic that tells you it is the
+media path, not the console.
 
 ## 12. GPU overlay (documented, not verified here)
 
-`docker-compose.gpu.yml`: `services.detector.deploy.resources.resolutions.devices:
-[{capabilities: [gpu]}]`, `NVIDIA_VISIBLE_DEVICES=all`,
-`DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider`. State plainly
-that this overlay ships and is documented, and that on the development box
-(no toolkit, no `/dev/nvidia*` nodes) **the CPU path is the only verified
-one** (S9-06).
+**There is no GPU overlay in this repo yet, and no CUDA claim has ever been
+executed here.** Card S9-06 (open) ships `docker-compose.gpu.yml` — device
+reservation, `NVIDIA_VISIBLE_DEVICES=all`,
+`DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider` — and it will be
+verified on hardware before it is claimed.
+
+What exists today: the CPU path (the only verified one), and
+[`docs/gpu-on-lxc.md`](gpu-on-lxc.md) — the host-side map for the LXC guest,
+device nodes and NVIDIA container toolkit, written from S3-08's investigation
+so the hardware day is an install, not a research project.
+
+`DET_PROVIDERS` is already wired end to end (server config → detector config
+payload → worker), so the overlay is compose, not code. Until it lands,
+sizing questions have one answer: CPU, 4–8 cameras, motion gate doing the
+heavy lifting.
 
 ## 13. Verify the installation
 
@@ -162,27 +320,85 @@ scripts/verify.sh          # the acceptance gate: 9 observed passes
 scripts/detect-smoke.sh    # yolov8n.onnx + bus.jpg, CPU inference, in-image
 ```
 
-List the nine gates in the operator's words: server healthy + detector fresh,
-login works, camera online, a person/loiter event observed end to end,
-snapshot + seekable clip, segments growing, uploads landing on the tier,
-OIDC login at the `viewer` floor, webhook signature verified.
+The nine gates, in the operator's words:
+
+1. server healthy **and** the detector's heartbeat fresh in `/api/healthz`;
+2. login works (the break-glass admin);
+3. a camera is online (the sidecar reports the stream);
+4. a person/loiter event was observed end to end (detection → event row);
+5. the event has a snapshot and a clip that plays;
+6. segments are growing on disk and in the manifest;
+7. uploads are landing on the configured tier;
+8. OIDC login lands at the `viewer` floor;
+9. a webhook fired and its signature verifies.
+
+Each gate prints what it observed, not just pass/fail — a red gate names the
+subsystem to open.
 
 ## 14. Backup, upgrade, restore
 
-What to back up (Postgres, `.env` — `NVR_SECRET_KEY` included, and the
-media tree), what an upgrade is (`:latest` pull + migrate at boot), what a
-restore looks like on a fresh box, and what happens to segments the old
-install never uploaded.
+**Back up:** the Postgres dump (`pg_dump`), the `.env` (both secrets are in
+it — treat the file as a credential), and the `DATA_DIR` volume if you want
+the footage itself. The go2rtc volume is disposable: the server re-renders
+it from the camera rows.
+
+**Upgrade:** pull the new tag, `docker compose up -d`, and migrations run at
+boot (versioned, forward-only). Sessions survive an upgrade only if
+`JWT_SECRET` was set — that is the ephemeral-sessions cost from § 2, paid at
+upgrade time.
+
+**Restore on a fresh box:** restore the database, write the same
+`NVR_SECRET_KEY` **before first boot**, mount the media volume, start the
+stack. Same key → every backend credential opens. Different key → every row
+is present, every credential is unopenable, and the Settings page says so per
+backend (retype them; the footage is unaffected).
+
+**Segments the old install never uploaded**: their job rows come back with
+the database, and the uploader walks the queue on boot — an interrupted
+upload story resumes, it does not restart.
 
 ## 15. Uninstall
 
-Stop the stack, keep-or-remove the named volumes (`postgres_data`,
-`go2rtc_config`, `nvr_data`, `nvr_models`), and what is left on disk under
-`DATA_DIR`.
+```bash
+docker compose down                    # containers
+docker volume ls | grep nvr            # decide, per volume, keep or rm
+```
+
+The named volumes: `postgres_data` (the database), `nvr_data` (the media
+tree), `go2rtc_config` (disposable), `nvr_models` (downloaded weights,
+disposable). `docker compose down -v` removes them all in one line — that is
+the delete-everything command, and it is the only one in this guide. What is
+left under `DATA_DIR` on the host if you bind-mounted it: the same tree the
+server wrote (segments, clips, snapshots) — `rm -rf` it once the database is
+backed up or gone.
 
 ## Troubleshooting
 
-The five failures an operator actually hits: camera offline after a write,
-live view connecting with no video, detector `stale` in `/api/healthz`, queue
-jobs stuck `pending`, and an OIDC callback that lands with no token. Each
-entry names the check to run first.
+The five failures an operator actually hits, each with the check to run
+first:
+
+- **Camera offline after a write.** `docker logs nvr-go2rtc` — if the
+  supervisor just rebooted it (the "go2rtc.yaml changed on disk" line), wait
+  one boot and re-probe. If the log shows the source failing to connect, the
+  `source_uri` is wrong or the camera is unreachable from the sidecar's
+  network. Probe again from the console; the probe's answer is the sidecar's
+  words.
+- **Live view connects, no video.** The WebSocket reached the sidecar (that
+  is the "connecting" → no error part) but ICE failed — `GO2RTC_PUBLIC_URL`
+  is an address this browser cannot dial. Open `http://<that URL>` in the
+  same browser: if the sidecar's own page does not load, live view cannot
+  either.
+- **Detector `stale` in `/api/healthz`.** The heartbeat stopped: `docker logs
+  nvr-detector` — the last line names what it was doing. `WORKER_TOKEN`
+  mismatch between server and worker answers 403 and looks identical to a
+  dead worker from the outside; the worker's startup line prints the server
+  it is dialing.
+- **Queue jobs stuck `pending`.** The backend is disabled (the queue stops by
+  design) or the default backend is unset — Settings → Storage shows both.
+  `failed` rows are a different animal: open the attempt history, fix the
+  credential, requeue.
+- **OIDC callback lands with no token.** The IdP refused the redirect URI:
+  the registered URI must be exactly
+  `${WEB_URL}/api/auth/sso/<provider>/callback` (§ 7). The server's 422 on
+  the authorize route prints the exact string to paste; the IdP's error page
+  usually says `invalid_redirect_uri` and means it.

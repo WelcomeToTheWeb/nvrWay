@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 1 | 124 |
+| 0 | 0 | 1 | 0 | 125 |
 
 Total cards: **126**. In Progress limit: **2**.
 
@@ -31,12 +31,7 @@ _empty_
 
 ## Backlog
 
-
-### Step 9 — Containers, compose, scripts, CI
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S9-10`](kanban/cards/S9-10.md) | Docs content: architecture, configuration, api, installation (decisions, not filler) | S0-02, S6-05, S7-09, S9-06 |
+_empty_
 
 ## Done
 
@@ -187,6 +182,7 @@ _empty_
 | [`S9-07`](kanban/cards/S9-07.md) | "/health + /api/healthz with detector heartbeat (fresh/stale)" | S1-13, S5-09 |
 | [`S9-08`](kanban/cards/S9-08.md) | "scripts: dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh, fetch-fixture.sh" | S9-04, S10-02, S10-03 |
 | [`S9-09`](kanban/cards/S9-09.md) | .github/workflows/build.yml: four jobs | P-01, S1-14, S5-11, S8-11 |
+| [`S9-10`](kanban/cards/S9-10.md) | "Docs content: architecture, configuration, api, installation (decisions, not filler)" | S0-02, S6-05, S7-09 |
 
 ### Step 10 — Demo fixture, seeding, end-to-end
 
