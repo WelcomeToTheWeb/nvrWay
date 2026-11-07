@@ -150,6 +150,11 @@ function server(over: Partial<Record<string, Scripted>> = {}) {
         return { status: 200, data: { deliveries: deliveries(), count: 2 } };
       case 'get /settings/retention':
         return { status: 200, data: RETENTION };
+      case 'get /v1/settings/media':
+        // P-11: the roll and the segment length, read through the same door
+        // the drawer's strip pads by. Non-defaults so a restated default in
+        // the panel would show as a mismatch.
+        return { status: 200, data: { pre_roll_seconds: 8, post_roll_seconds: 15, segment_seconds: 5 } };
       default:
         return { status: 404, data: { error: `unexpected ${call.method} ${call.url}` } };
     }
@@ -421,6 +426,24 @@ describe('SettingsPage — the retention tab', () => {
     // Read-only by contract: the environment is the policy's only author.
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
     expect(screen.getByText(/authored by the environment/)).toBeTruthy();
+    h.restore();
+  });
+
+  it('shows the roll and the segment length read from the media route (P-11)', async () => {
+    // The panel does not restate these defaults: the numbers on screen are
+    // the ones the clip builder and the recorder run on, from the same
+    // answer the drawer's strip pads by.
+    const h = attachHarness(server());
+    renderAt();
+    await openTab('Retention');
+    await screen.findByText('keep forever');
+
+    expect(screen.getByText('clip pre-roll')).toBeTruthy();
+    expect(screen.getByText('8s')).toBeTruthy();
+    expect(screen.getByText('15s')).toBeTruthy();
+    expect(screen.getByText('clip post-roll')).toBeTruthy();
+    expect(screen.getByText('segment length')).toBeTruthy();
+    expect(screen.getByText(/PRE_ROLL_SECONDS/)).toBeTruthy();
     h.restore();
   });
 });

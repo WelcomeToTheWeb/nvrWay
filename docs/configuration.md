@@ -59,7 +59,7 @@ tier it lives beside.
 | `OIDC_ISSUER`,`OIDC_CLIENT_ID`,`OIDC_CLIENT_SECRET` | empty | seeds provider row `oidc` on first boot (discovery at boot; failure logs, never fatal) |
 | `OIDC_ROLE_CLAIM`, `OIDC_ROLE_MAPPING` | `groups`, `""` | claim name + `group=role,group=role` |
 | `SEGMENT_SECONDS` | `5` | segment length |
-| `PRE_ROLL_SECONDS`/`POST_ROLL_SECONDS` | `8`/`15` | event clip window |
+| `PRE_ROLL_SECONDS`/`POST_ROLL_SECONDS` | `8`/`15` | event clip window — served to the console by `GET /api/v1/settings/media`, so the drawer's strip spans the padded window instead of guessing (P-11) |
 | `EVENT_MAX_SECONDS` | `300` | forced event close |
 | `LOCAL_RETENTION_DAYS` | `14` | global default retention |
 | `REMOTE_RETENTION_DAYS` | `30` | 0 = keep remote forever |

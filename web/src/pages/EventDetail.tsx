@@ -27,20 +27,24 @@
  * so it always draws.
  *
  * **The strip is the event's own window, and says so.** The clip is cut from the
- * window *plus* the pre/post roll, and the console is not told those seconds, so
- * the strip draws the window it asked for — the server's echoed `from`/`to`, not
- * this browser's clock — and states the clip's measured length beside it.
+ * window *plus* the pre/post roll, and since P-11 the console is told those
+ * seconds (`GET /api/v1/settings/media`) and pads the strip's request by them,
+ * so the band drawn is the footage the clip contains. The strip still draws on
+ * the server's echoed `from`/`to`, never this browser's clock, and states the
+ * clip's measured length beside it.
  */
 import { useEffect, useMemo, useState } from 'react';
 
 import client, { serverWords } from '../api/client';
 import {
+  clipWindow,
   eventWindow,
   formatDuration,
   formatMoment,
   mergeLive,
   type CameraRefs,
   type EventView,
+  type MediaSettings,
   type SegmentView,
 } from '../api/events';
 import { useMediaUrl } from '../api/media';
@@ -183,8 +187,16 @@ function Snapshot({ event }: { event: EventView }) {
   );
 }
 
-/** The footage the event sits in, drawn on the window the server answered. */
-function SegmentStrip({ segments, from, to, truncated }: Manifest) {
+/** The footage the clip contains, drawn on the window the server answered —
+ * which since P-11 is the event's window padded by the roll the server was
+ * told, so the band and the clip are the same stretch of footage. */
+function SegmentStrip({
+  segments,
+  from,
+  to,
+  truncated,
+  roll,
+}: Manifest & { roll: MediaSettings | null }) {
   const start = new Date(from).getTime();
   const end = new Date(to).getTime();
   const span = end - start;
@@ -220,8 +232,10 @@ function SegmentStrip({ segments, from, to, truncated }: Manifest) {
       </div>
       <p className="mt-1 font-mono text-xs text-text-muted">
         {segments.length} segments between {formatMoment(from)} and {formatMoment(to)}
-        {truncated ? ' · the window held more' : ''} — the clip may reach past this window, because
-        the server pads it by the roll settings and this console is not told them
+        {truncated ? ' · the window held more' : ''}
+        {roll
+          ? ` — the window the clip was cut from: ${roll.pre_roll_seconds}s of pre-roll before the event, ${roll.post_roll_seconds}s of post-roll after`
+          : ' — the clip may reach past this window, because the server pads it by the roll settings and this console is not told them'}
       </p>
     </div>
   );
@@ -230,12 +244,14 @@ function SegmentStrip({ segments, from, to, truncated }: Manifest) {
 export default function EventDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const [state, setState] = useState<State>({ kind: 'reading' });
   const [manifest, setManifest] = useState<Manifest | null>(null);
+  const [roll, setRoll] = useState<MediaSettings | null>(null);
   const live = useRealtime((state) => state.events[id]);
 
   useEffect(() => {
     let alive = true;
     setState({ kind: 'reading' });
     setManifest(null);
+    setRoll(null);
 
     void (async () => {
       try {
@@ -255,7 +271,20 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
 
         if (alive) setState({ kind: 'ready', event: data, camera });
 
-        const window = eventWindow(data);
+        // The roll the clip was padded by (P-11). Its failure is survivable
+        // in the honest direction: the strip falls back to the event's own
+        // window and says it is not told the roll, rather than padding by a
+        // number the console invented.
+        let roll: MediaSettings | null = null;
+        try {
+          const media = await client.get<MediaSettings>('/v1/settings/media');
+          roll = media.data;
+        } catch {
+          roll = null;
+        }
+        if (alive) setRoll(roll);
+
+        const window = roll ? clipWindow(data, roll) : eventWindow(data);
         const params = new URLSearchParams({ camera_id: data.camera_id, from: window.from });
         if (window.to) params.set('to', window.to);
         try {
@@ -357,7 +386,7 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
             <div className="mt-4">
               <h3 className="font-cap text-sm uppercase tracking-cap text-text-secondary">Footage</h3>
               <div className="mt-2">
-                {manifest ? <SegmentStrip {...manifest} /> : <p className="text-sm text-text-secondary">Reading the manifest.</p>}
+                {manifest ? <SegmentStrip {...manifest} roll={roll} /> : <p className="text-sm text-text-secondary">Reading the manifest.</p>}
               </div>
             </div>
           </>

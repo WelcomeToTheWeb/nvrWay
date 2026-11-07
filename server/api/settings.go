@@ -598,6 +598,7 @@ func formatTimePtr(t *time.Time) *string {
 func (h *Handlers) registerLiveSettingsRoutes(r *gin.Engine) {
 	read := r.Group("/api/v1/settings", AuthMiddleware(h.JWT))
 	read.GET("/live", h.LiveSettings)
+	read.GET("/media", h.MediaSettings)
 }
 
 // LiveSettings answers the one deployment fact the live player cannot guess:
@@ -626,4 +627,34 @@ func (h *Handlers) LiveSettings(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"go2rtc_public_url": h.Cfg.Go2rtcPublicURL})
+}
+
+// MediaSettings answers the three numbers that decide how wide a clip is and
+// how long a segment is — the roll the clip builder pads by (S6-01) and the
+// segment length the recorder cuts to (S4-02).
+//
+// GET /api/v1/settings/media (any signed-in role)
+//
+// The card behind it (P-11) is the event drawer's segment strip: the clip
+// reaches `pre_roll_seconds` before and `post_roll_seconds` after the event's
+// own window, and a strip that asks for the event's window alone draws a
+// narrower band than the footage it sits under. Before this route the console
+// could only apologise about not being told the numbers; now it pads by them.
+//
+// The gate is the plain read gate, not `admin`: the drawer is a viewer's
+// screen. The retention panel (admin) reads the same door for the same
+// numbers, which is the point — one setting, one answer, two readers.
+//
+// These are the config values, verbatim, with no clamping and no defaults
+// restated: the clip builder and the recorder read the same `Cfg` fields in
+// this same process, so the screen and the ffmpeg arguments cannot disagree.
+// `segment_seconds` beside the roll is deliberate — the recorder's status line
+// (S4-06) carries it over the WS, and the strip draws segment bars; both are
+// this one number.
+func (h *Handlers) MediaSettings(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"pre_roll_seconds":  h.Cfg.PreRollSeconds,
+		"post_roll_seconds": h.Cfg.PostRollSeconds,
+		"segment_seconds":   h.Cfg.SegmentSeconds,
+	})
 }

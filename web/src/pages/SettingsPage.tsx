@@ -53,6 +53,7 @@ import {
   type WebhookView,
   type WebhookWrite,
 } from '../api/settings';
+import { type MediaSettings } from '../api/events';
 import { useAuth } from '../auth/context';
 import { useRealtime } from '../stores/realtime';
 
@@ -1241,6 +1242,11 @@ function WebhookForm({
 
 function RetentionTab() {
   const [page, setPage] = useState<ReadState<RetentionView>>({ kind: 'reading' });
+  // The roll and the segment length come through the same door the drawer's
+  // strip pads by (P-11): one setting, one answer, two readers. The panel
+  // never restates a default, so the console cannot show two numbers for one
+  // knob. Its failure costs three rows, not the panel.
+  const [roll, setRoll] = useState<MediaSettings | null>(null);
 
   useEffect(() => {
     void client
@@ -1249,6 +1255,10 @@ function RetentionTab() {
       .catch((error: unknown) =>
         setPage({ kind: 'failed', reason: readWords(error, 'the retention policy is unreadable') }),
       );
+    void client
+      .get<MediaSettings>('/v1/settings/media')
+      .then((response) => setRoll(response.data))
+      .catch(() => setRoll(null));
   }, []);
 
   if (page.kind === 'reading') {
@@ -1283,6 +1293,25 @@ function RetentionTab() {
     { label: 'delivery history', value: `${view.webhook_delivery_days} days` },
     { label: 'audit ledger', value: `${view.audit_days} days` },
     { label: 'queue rows', value: `${view.job_days} days` },
+    ...(roll
+      ? [
+          {
+            label: 'clip pre-roll',
+            value: `${roll.pre_roll_seconds}s`,
+            note: 'PRE_ROLL_SECONDS — a clip starts this far before the event, and the drawer’s strip asks for segments from there',
+          },
+          {
+            label: 'clip post-roll',
+            value: `${roll.post_roll_seconds}s`,
+            note: 'POST_ROLL_SECONDS — and ends this far after it',
+          },
+          {
+            label: 'segment length',
+            value: `${roll.segment_seconds}s`,
+            note: 'SEGMENT_SECONDS — the same number the recorder’s status line carries',
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -107,6 +107,10 @@ function server(over: Partial<Record<string, Scripted>> = {}) {
   const detail = over.detail ?? { status: 200, data: event() };
   const cam = over.camera ?? { status: 200, data: camera() };
   const clip = over.clip ?? { status: 200, data: new Blob(['mp4'], { type: 'video/mp4' }) };
+  const media = over.media ?? {
+    status: 200,
+    data: { pre_roll_seconds: 8, post_roll_seconds: 15, segment_seconds: 5 },
+  };
   const segments = over.segments ?? {
     status: 200,
     data: {
@@ -126,6 +130,7 @@ function server(over: Partial<Record<string, Scripted>> = {}) {
     if (call.url === '/v1/events/e1') return detail;
     if (call.url.startsWith('/v1/cameras/')) return cam;
     if (call.url.startsWith('/v1/segments')) return segments;
+    if (call.url === '/v1/settings/media') return media;
     return { status: 404, data: { error: `unexpected ${call.url}` } };
   };
 }
@@ -262,15 +267,43 @@ describe('EventDetail — the footage the event sits in', () => {
     const { container, h } = open();
     await waitFor(() => expect(container.querySelectorAll('[title*="porch"]')).toHaveLength(1));
     expect(screen.getByText(/1 segments between/)).toBeTruthy();
-    expect(screen.getByText(/the clip may reach past this window/)).toBeTruthy();
+    // P-11: the console is told the roll, so the caption names the window it
+    // drew instead of apologising for not being told it.
+    expect(screen.getByText(/the window the clip was cut from: 8s of pre-roll before the event, 15s of post-roll after/)).toBeTruthy();
+    expect(screen.queryByText(/the clip may reach past this window/)).toBeNull();
     h.restore();
   });
 
-  it('asks for the event window, and no end for an event that has not ended', async () => {
-    const { h } = open({ detail: { status: 200, data: event({ open: true, ended_at: '' }) } });
+  it('asks for the padded window — the strip spans what the clip contains (P-11)', async () => {
+    const { h } = open();
+    await waitFor(() => expect(h.calls.some((c) => c.url.startsWith('/v1/segments'))).toBe(true));
+    const asked = h.calls.find((c) => c.url.startsWith('/v1/segments'))!.url;
+    // 20:00:00 minus the 8s pre-roll, 20:00:30 plus the 15s post-roll — the
+    // server's numbers, not a constant the console invented.
+    expect(asked).toContain('from=2026-11-06T19%3A59%3A52Z');
+    expect(asked).toContain('to=2026-11-06T20%3A00%3A45Z');
+    h.restore();
+  });
+
+  it('falls back to the event window and says so when the roll is unreadable', async () => {
+    // The failure keeps the old honesty: an unpadded band that admits it is
+    // not told the roll, rather than a band padded by a guessed number.
+    const { h } = open({ media: { status: 500, data: { error: 'settings are unreadable' } } });
     await waitFor(() => expect(h.calls.some((c) => c.url.startsWith('/v1/segments'))).toBe(true));
     const asked = h.calls.find((c) => c.url.startsWith('/v1/segments'))!.url;
     expect(asked).toContain('from=2026-11-06T20%3A00%3A00Z');
+    expect(asked).toContain('to=2026-11-06T20%3A00%3A30Z');
+    expect(await screen.findByText(/the clip may reach past this window/)).toBeTruthy();
+    h.restore();
+  });
+
+  it('pads the start and names no end for an event that has not ended', async () => {
+    const { h } = open({ detail: { status: 200, data: event({ open: true, ended_at: '' }) } });
+    await waitFor(() => expect(h.calls.some((c) => c.url.startsWith('/v1/segments'))).toBe(true));
+    const asked = h.calls.find((c) => c.url.startsWith('/v1/segments'))!.url;
+    // The pre-roll pads an open event too — the clip will be cut from there —
+    // but an event with no end has no end to pad.
+    expect(asked).toContain('from=2026-11-06T19%3A59%3A52Z');
     expect(asked).toContain('camera_id=c1');
     expect(asked).not.toContain('to=');
     h.restore();

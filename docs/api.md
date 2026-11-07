@@ -458,7 +458,14 @@ Rows are pruned after 30 days by the retention sweep (S7-09, sweep 5).
 ## Settings
 
 `GET /api/v1/settings/live` (the console never hard-codes the media host,
-S8-04), `PUT /api/settings/oidc` (discovery result in the response),
+S8-04), `GET /api/v1/settings/media` (any signed-in role, P-11):
+`pre_roll_seconds`, `post_roll_seconds`, `segment_seconds` — the roll the clip
+builder pads the event window by and the segment length the recorder cuts to,
+answered from the same config the ffmpeg arguments come from. The event
+drawer's segment strip asks for segments over the padded window so the band it
+draws is the footage the clip contains, and the retention panel reads the same
+door, so the console cannot show two numbers for one knob.
+`PUT /api/settings/oidc` (discovery result in the response),
 `GET /api/settings/retention` (admin, S8-08): the windows the sweeper will
 honour, read from the config this process loaded — `local_days`, `remote_days`
 (with `remote_forever: true` spelled out beside a zero), `event_days`,

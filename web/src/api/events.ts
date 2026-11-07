@@ -200,6 +200,36 @@ export function eventWindow(event: { started_at: string; ended_at: string; open:
   return { from: event.started_at, to: event.open ? null : event.ended_at || null };
 }
 
+/** `GET /api/v1/settings/media` (P-11): the roll the clip builder pads by and
+ * the segment length the recorder cuts to — the server's numbers, read from
+ * the same config the ffmpeg arguments come from. */
+export interface MediaSettings {
+  pre_roll_seconds: number;
+  post_roll_seconds: number;
+  segment_seconds: number;
+}
+
+/** The window the clip was cut from (P-11): the event's own window padded by
+ * the roll the server was told. The strip asks for segments over this window
+ * so the band it draws is the footage the clip contains, not a narrower one
+ * with an apology under it. An open event still has no end to pad. */
+export function clipWindow(
+  event: { started_at: string; ended_at: string; open: boolean },
+  roll: MediaSettings,
+): { from: string; to: string | null } {
+  const shift = (iso: string, seconds: number) =>
+    new Date(new Date(iso).getTime() + seconds * 1000)
+      .toISOString()
+      // The server's clock speaks whole seconds; a `.000Z` tail parses the
+      // same but reads like a different format on the wire.
+      .replace(/\.\d{3}Z$/, 'Z');
+  const end = event.ended_at || event.started_at;
+  return {
+    from: shift(event.started_at, -roll.pre_roll_seconds),
+    to: event.open ? null : shift(end, roll.post_roll_seconds),
+  };
+}
+
 /** A duration an operator reads, not a float with six decimals. */
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—';

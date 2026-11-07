@@ -153,3 +153,50 @@ func TestLiveSettingsNamesAnUnconfiguredMediaHost(t *testing.T) {
 		t.Errorf("a refusal must not also answer a blank media host: %s", raw)
 	}
 }
+
+
+// P-11 — GET /api/v1/settings/media: the roll and the segment length, told.
+//
+// The drawer's strip pads the event window by these numbers so the band it
+// draws is the window the clip was cut from; the retention panel reads the
+// same door so the console cannot show two numbers for one setting.
+func TestMediaSettingsAnswersTheRollAndTheSegmentLength(t *testing.T) {
+	st := newStore(t)
+	h := newHandlers(t, st)
+	// Distinctive non-defaults: the answer must be the config, not a restated
+	// default, and the strip does arithmetic with these numbers.
+	h.Cfg.PreRollSeconds = 8
+	h.Cfg.PostRollSeconds = 15
+	h.Cfg.SegmentSeconds = 5
+	r := routerFor(t, h)
+
+	viewer := newUser(t, st, "wall", models.RoleViewer)
+	status, body, raw := do(t, r, request{
+		method: http.MethodGet,
+		path:   "/api/v1/settings/media",
+		bearer: accessToken(t, st, h.JWT, viewer),
+	})
+	if status != http.StatusOK {
+		t.Fatalf("a viewer reads the roll: %d %s", status, raw)
+	}
+	for key, want := range map[string]float64{
+		"pre_roll_seconds":  8,
+		"post_roll_seconds": 15,
+		"segment_seconds":   5,
+	} {
+		if body[key] != want {
+			t.Errorf("%s = %v, want %v (%s)", key, body[key], want, raw)
+		}
+	}
+}
+
+func TestMediaSettingsNeedsASessionLikeItsNeighbour(t *testing.T) {
+	st := newStore(t)
+	h := newHandlers(t, st)
+	r := routerFor(t, h)
+
+	status, _, _ := do(t, r, request{method: http.MethodGet, path: "/api/v1/settings/media"})
+	if status != http.StatusUnauthorized {
+		t.Errorf("the route is behind the read gate, not public: got %d", status)
+	}
+}
