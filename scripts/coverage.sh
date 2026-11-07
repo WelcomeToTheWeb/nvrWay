@@ -12,11 +12,10 @@
 #              gcc the CGO sqlite driver needs — the production build is
 #              CGO_ENABLED=0, the test suite is not)
 #   detector : pytest --cov inside the detector image (the host's Python
-#              cannot host the ML worker). pytest-cov and onnx are not baked
-#              into the runtime image — production does not measure itself,
-#              and `onnx` is only a test-fixture builder — so the run
-#              installs them into the throwaway container. (S11-02 tracks
-#              making the suite green in the image without this.)
+#              cannot host the ML worker). pytest-cov is not baked into the
+#              runtime image — production does not measure itself — so the
+#              run installs it into the throwaway container. `onnx` is baked
+#              in since S11-02: the suite cannot run in the image without it.
 #   web      : vitest run --coverage (json-summary; the text table is for
 #              humans, the JSON is for the ratchet)
 #
@@ -107,7 +106,7 @@ fi
 echo "coverage: detector — pytest --cov in the detector image (not slow)"
 docker compose -f "$repo_root/docker/docker-compose.yml" --env-file "$env_file" \
     run --rm detector sh -c \
-    'pip install --quiet --disable-pip-version-check --target=/tmp/pcov pytest-cov onnx >/dev/null &&
+    'pip install --quiet --disable-pip-version-check --target=/tmp/pcov pytest-cov >/dev/null &&
      PYTHONPATH=/tmp/pcov python -m pytest -m "not slow" -q --cov=nvr_detector --cov-report=term 2>&1 |
      tee /dev/stderr | grep -E "^TOTAL" | awk "{gsub(\"%\", \"\", \$4); print \$4}"' \
     > "$out_dir/detector.total" 2> "$out_dir/detector.log"

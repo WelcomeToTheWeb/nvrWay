@@ -60,7 +60,14 @@ RUN pip install --no-cache-dir \
         numpy \
         requests \
         pydantic \
-        pytest
+        pytest \
+        onnx==1.17.0
+# `onnx` is the suite's, not the worker's: the tests synthesise tiny ONNX models
+# (conftest.write_tiny_onnx) with the same serialiser the export stage uses, and
+# this image is the only environment that can run the suite — the host Python
+# has no pip (the card's own note). It is pinned to the export stage's version
+# so fixture and shipped model come from one serialiser. pytest is here for the
+# same reason (S9-02).
 
 RUN groupadd -r nvr && useradd -r -g nvr nvr
 

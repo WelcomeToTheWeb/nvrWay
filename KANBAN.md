@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 9 | 112 |
+| 0 | 0 | 1 | 8 | 113 |
 
 Total cards: **122**. In Progress limit: **2**.
 
@@ -48,7 +48,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S11-02`](kanban/cards/S11-02.md) | Detector suite green: pytest -m 'not slow' + the slow smoke | S5-11 |
 | [`S11-03`](kanban/cards/S11-03.md) | Console suite green: typecheck + vitest | S8-11 |
 | [`S11-04`](kanban/cards/S11-04.md) | E2E suite green: scripts/e2e-stack.sh test (Playwright chromium) | S8-12, S10-02 |
 | [`S11-05`](kanban/cards/S11-05.md) | Coverage ratchet recorded (coverage.sh --record) | S11-01, S11-02, S11-03 |
@@ -224,6 +223,7 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S11-01`](kanban/cards/S11-01.md) | "Go suite green: go2rtc, media, storage, sweeper, sso, api, webhooks, ws" | S2-11, S3-06, S4-07, S6-05, S7-10, S7-09, S6-06 |
+| [`S11-02`](kanban/cards/S11-02.md) | "Detector suite green: pytest -m 'not slow' + the slow smoke" | S5-11 |
 
 ### Process — Repo mechanics
 
