@@ -1,12 +1,21 @@
-# nvrWay — production compose
+# nvrWay — production compose (image-based)
 #
-# Skeleton from the plan's Step 0 (card S0-03); content is card S9-05. Same
-# services as docker/docker-compose.yml with three differences: images are
-# published, nothing is built, and MinIO is absent.
+# The deployment file: same services as docker/docker-compose.yml, but every
+# nvrWay image comes from the registry — no build sections, so this file runs
+# on a host with no source checkout. The dev file is for development; this one
+# is what docs/installation.md tells an operator to run.
 #
-# Images are published from tags only (`:latest` is always a stable release,
-# `:edge` follows main — OurWay's semantics, docs/versioning.md). Pin
-# X.Y.Z on a fleet that must not move on its own.
+# Tag semantics (OurWay's rule): `:latest` floats with every CI build, so a
+# plain `up` here means "whatever CI published last". A deployment that wants
+# reproducibility pins the digest — `docker buildx imagetools inspect
+# ghcr.io/welcometotheweb/nvr/server:latest` and put the `@sha256:...` in the
+# image line. The compose file, not a rebuild, is the unit of upgrade.
+#
+# Secrets come from the .env next to this file and nothing here has a dev
+# default: a production stack that boots with a random JWT_SECRET loses every
+# session on restart, and an empty WORKER_TOKEN silently disables the internal
+# API the detector lives on. `${VAR:?...}` is the compile-time gate — compose
+# refuses to even resolve the file, naming what is missing.
 
 name: nvr
 
@@ -16,16 +25,16 @@ services:
     container_name: nvr-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nvr}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}
-      POSTGRES_DB: ${POSTGRES_DB:-nvr}
+      POSTGRES_USER: nvr
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}"
+      POSTGRES_DB: nvr
       TZ: UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nvr} -d ${POSTGRES_DB:-nvr}"]
+      test: ["CMD-SHELL", "pg_isready -U nvr -d nvr"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -36,30 +45,55 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # go2rtc ships FFmpeg, so the recorder's `ffmpeg:` sources resolve inside it.
+  # The server re-renders this service's whole config from the camera rows
+  # (server/go2rtc/config.go -> POST /api/config) — the config file is never
+  # hand-edited (S3-02, S3-05).
+  #
+  # The command line closes the first-boot auth window the dev stack accepts:
+  # go2rtc initializes its basic-auth middleware at startup, so credentials
+  # that only arrive with the server's first push would leave the API open
+  # until the sidecar's next restart. The inline `-c` pairs (go2rtc's
+  # key=value config form) force the same credentials the renderer writes,
+  # from the very first start. Compose interpolates them from .env; they are
+  # visible in `docker inspect` exactly as the env pair is.
   go2rtc:
     image: ghcr.io/alexxit/go2rtc:master
     container_name: nvr-go2rtc
     restart: unless-stopped
+    command:
+      - go2rtc
+      - -config
+      - /config/go2rtc.yaml
+      - -config
+      - api.username=${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production}
+      - -config
+      - api.password=${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production}
     environment:
-      GO2RTC_API: ":1984"
-      GO2RTC_RTSP: ":8554"
-      GO2RTC_WEBRTC: ":8555"
-      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
-      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
       TZ: UTC
     ports:
       - "1984:1984"
       - "8554:8554"
+      # WebRTC media: TCP and UDP on the same port. The browser dials these
+      # directly at GO2RTC_PUBLIC_URL — live view is not proxied through web.
       - "8555:8555"
       - "8555:8555/udp"
     volumes:
       - go2rtc_config:/config
     networks:
       - nvr_net
+    healthcheck:
+      # localhost bypasses the API auth (go2rtc's local_auth is off), so the
+      # probe needs no credentials. 127.0.0.1, not localhost: busybox wget
+      # prefers ::1 (S9-04).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:1984/api/streams || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     logging: *nvr_logging
 
   server:
-    # Published, never built here (S9-05): no build section in this file.
     image: ghcr.io/welcometotheweb/nvr/server:latest
     container_name: nvr-server
     restart: unless-stopped
@@ -67,68 +101,47 @@ services:
       postgres:
         condition: service_healthy
       go2rtc:
-        condition: service_started
+        condition: service_healthy
     environment:
       SERVER_PORT: ":8080"
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-nvr}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/${POSTGRES_DB:-nvr}?sslmode=disable"
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (openssl rand -hex 32)}
-      NVR_SECRET_KEY: ${NVR_SECRET_KEY:-}
+      DATABASE_URL: "postgresql://nvr:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/nvr?sslmode=disable"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required in production: an empty one is random per boot, so every restart logs everyone out}"
+      NVR_SECRET_KEY: "${NVR_SECRET_KEY:-}"
       DATA_DIR: /var/lib/nvr
       GO2RTC_URL: "http://go2rtc:1984"
       GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
-      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
-      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
-      # Required in production, and the only value here the *browser* uses:
-      # live view dials go2rtc directly, not the server (S8-04, S8-05).
-      GO2RTC_PUBLIC_URL: ${GO2RTC_PUBLIC_URL:?GO2RTC_PUBLIC_URL is required — the address the console's browser can reach}
-      WORKER_TOKEN: ${WORKER_TOKEN:-}
-      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-admin}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      WEB_URL: ${WEB_URL:-http://localhost:3000}
-      # The origin a *webhook receiver* dials, used to build the payload's
-      # snapshot_url and clip_url. Not required, and empty is a real answer only
-      # when the receiver runs on this host: the payload then points at
-      # localhost:8080 and every other machine's automation reports a broken link.
-      # Set it to the LAN address or the reverse-proxy origin, e.g.
-      # http://192.168.1.20:8080 or https://cam.example.com/nvr.
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      GO2RTC_USERNAME: ${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production}
+      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production}
+      # Required, no default: the console dials go2rtc directly for live view,
+      # so the operator must say which origin the browser can reach. A guessed
+      # localhost URL is a live view that works on the server and nowhere else.
+      GO2RTC_PUBLIC_URL: "${GO2RTC_PUBLIC_URL:?GO2RTC_PUBLIC_URL is required in production: it is the origin the browser dials for live view}"
+      WORKER_TOKEN: "${WORKER_TOKEN:?WORKER_TOKEN is required in production: an empty one disables the internal API the detector lives on}"
+      BOOTSTRAP_ADMIN_USER: "${BOOTSTRAP_ADMIN_USER:-admin}"
+      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
+      WEB_URL: "${WEB_URL:-http://localhost:3000}"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
       TZ: UTC
-      # S3-07 — the go2rtc restart. go2rtc instantiates its streams at startup,
-      # so a camera write that only pushes the config leaves a new camera out of
-      # the live map until the sidecar boots from that file (measured on go2rtc
-      # 1.9.15). The server recreates the service after each camera write, one
-      # service, `--no-deps`, and reports which streams came up.
-      #
-      # Set `GO2RTC_COMPOSE_FILE` to the compose file's path *as the server
-      # container sees it*, which is why it is mounted read-only below. Leaving
-      # it empty is supported: the writes then report that the camera is saved
-      # and its stream goes live at the sidecar's next boot.
-      GO2RTC_COMPOSE_FILE: ${GO2RTC_COMPOSE_FILE:-}
-      GO2RTC_COMPOSE_SERVICE: ${GO2RTC_COMPOSE_SERVICE:-go2rtc}
-      GO2RTC_COMPOSE_BIN: ${GO2RTC_COMPOSE_BIN:-docker}
-      GO2RTC_RESTART_TIMEOUT: ${GO2RTC_RESTART_TIMEOUT:-60s}
-      GO2RTC_RESTART_SETTLE: ${GO2RTC_RESTART_SETTLE:-2s}
-      GO2RTC_RESTART_PROBE_BUDGET: ${GO2RTC_RESTART_PROBE_BUDGET:-30s}
     ports:
       - "8080:8080"
     volumes:
       - nvr_data:/var/lib/nvr
-      # The two mounts below are the whole privilege of the restart: the socket,
-      # and this file. Both are opt-in — with no socket mounted set
-      # `GO2RTC_COMPOSE_FILE=` and the server states, in every camera write's
-      # answer, that the stream goes live at the sidecar's next boot.
-      # - /var/run/docker.sock:/var/run/docker.sock
-      # - ./docker-compose.prod.yml:/etc/nvrway/docker-compose.prod.yml:ro
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health || exit 1"]
+      # Liveness only — /health never touches the database (S1-13).
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
     logging: *nvr_logging
 
+  # The detection worker: no listener of its own, so its healthcheck is the
+  # process check (S9-04: /proc/1/cmdline, because the slim image has no
+  # pgrep). No models volume: the exported model is baked into the image and
+  # the image digest is its provenance — a named volume would outlive the
+  # image it was seeded from.
   detector:
     image: ghcr.io/welcometotheweb/nvr/detector:latest
     container_name: nvr-detector
@@ -138,15 +151,13 @@ services:
         condition: service_healthy
     environment:
       NVR_SERVER_URL: "http://server:8080"
-      NVR_WORKER_TOKEN: ${WORKER_TOKEN:-}
-      DET_PROVIDERS: ${DET_PROVIDERS:-CPUExecutionProvider}
+      NVR_WORKER_TOKEN: "${WORKER_TOKEN:?WORKER_TOKEN is required in production: an empty one disables the internal API the detector lives on}"
+      DET_PROVIDERS: "${DET_PROVIDERS:-CPUExecutionProvider}"
       TZ: UTC
-    volumes:
-      - nvr_models:/models
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "sh -c 'pgrep -f nvr_detector' || exit 1"]
+      test: ["CMD-SHELL", "grep -q nvr_detector /proc/1/cmdline || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -161,19 +172,18 @@ services:
       server:
         condition: service_healthy
     ports:
+      # nginx serves on 8080 (an unprivileged user cannot bind 80), so the
+      # published port maps to 8080 — README's "console on :3000".
       - "3000:8080"
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     logging: *nvr_logging
-
-  # No MinIO in production: this is where an operator's own S3 / WebDAV / SFTP
-  # / NFS tier is configured through the API, not compose (S7-10).
 
 networks:
   nvr_net:
@@ -185,6 +195,4 @@ volumes:
   go2rtc_config:
     driver: local
   nvr_data:
-    driver: local
-  nvr_models:
     driver: local
