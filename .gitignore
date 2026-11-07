@@ -58,3 +58,4 @@ detector/*.egg-info/
 testdata/bus.jpg
 testdata/yolov8n.pt
 testdata/yolov8n.onnx
+/.agents/notes/archive.json
