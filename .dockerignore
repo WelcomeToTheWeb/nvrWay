@@ -1,0 +1,33 @@
+# The build contexts are the three Dockerfiles in docker/, all built from the
+# repo root. Each stage COPYs exactly one subtree (server/, detector/, web/);
+# everything else here is either 200 MB of node_modules, the git history, or
+# runtime state that must never reach an image.
+.git
+.gitignore
+.dockerignore
+
+# The web install lives on the host for dev; Dockerfile.web runs npm itself.
+node_modules
+web/node_modules
+web/dist
+
+# Runtime state and build artifacts.
+data/
+*.db
+*.db-*
+server/*.test
+.hindsight/
+.agents/
+kanban/
+docs/
+testdata/
+coverage/
+web/coverage/
+
+# Python build state (Dockerfile.detector installs from source).
+__pycache__/
+*.pyc
+detector/.pytest_cache/
+detector/*.egg-info/
+models/*.pt
+models/*.onnx

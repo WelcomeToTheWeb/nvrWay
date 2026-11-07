@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 23 | 96 |
+| 0 | 0 | 1 | 22 | 97 |
 
 Total cards: **120**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S9-01`](kanban/cards/S9-01.md) | Dockerfile.server: alpine builder + runtime with ffmpeg, non-root, healthcheck | S1-02, S1-13 |
 | [`S9-02`](kanban/cards/S9-02.md) | Dockerfile.detector: export stage + runtime stage | S5-01, S5-12 |
 | [`S9-03`](kanban/cards/S9-03.md) | Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws | S8-01 |
 | [`S9-04`](kanban/cards/S9-04.md) | docker/docker-compose.yml (dev): six services, healthchecks, named volumes | S9-01, S9-02, S9-03, S3-01 |
@@ -215,6 +214,12 @@ _empty_
 | [`S8-10`](kanban/cards/S8-10.md) | "realtime.ts: zustand store over /ws?token= with backoff + stale banner" | S8-02, S2-10 |
 | [`S8-11`](kanban/cards/S8-11.md) | Console suite: vitest + @testing-library (behavior, no snapshots) | S8-02, S8-05, S8-06, S8-07, S8-10 |
 | [`S8-13`](kanban/cards/S8-13.md) | "CamerasPage: delete a camera (admin) with a confirmation that names the footage" | S8-07, S8-09, S3-03 |
+
+### Step 9 — Containers, compose, scripts, CI
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S9-01`](kanban/cards/S9-01.md) | "Dockerfile.server: alpine builder + runtime with ffmpeg, non-root, healthcheck" | S1-02, S1-13 |
 
 ### Process — Repo mechanics
 
