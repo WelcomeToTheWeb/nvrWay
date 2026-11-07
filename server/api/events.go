@@ -673,8 +673,8 @@ func (h *Handlers) enqueueEventPurge(event *models.Event) (int, string) {
 		uploaded                bool
 	}
 	pieces := []media{
-		{event.ID + ":clip", models.JobKindClip, event.ClipKey, event.LocalClipPath, event.ClipUploaded()},
-		{event.ID + ":snapshot", models.JobKindSnapshot, event.SnapshotKey, event.LocalSnapshotPath, event.SnapshotUploaded()},
+		{store.EventJobID(event.ID, models.JobKindClip), models.JobKindClip, event.ClipKey, event.LocalClipPath, event.ClipUploaded()},
+		{store.EventJobID(event.ID, models.JobKindSnapshot), models.JobKindSnapshot, event.SnapshotKey, event.LocalSnapshotPath, event.SnapshotUploaded()},
 	}
 
 	queued := 0

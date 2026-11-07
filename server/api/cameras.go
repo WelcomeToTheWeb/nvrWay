@@ -688,7 +688,7 @@ func (h *Handlers) enqueueCameraPurge(ctx context.Context, camera *models.Camera
 				target = filepath.Base(event.LocalSnapshotPath)
 			}
 			if err := h.St.StorageJobs.Enqueue(store.JobInput{
-				ID:        event.ID + ":snapshot",
+				ID:        store.EventJobID(event.ID, models.JobKindSnapshot),
 				Kind:      models.JobKindSnapshot,
 				Target:    target,
 				BackendID: backend.ID,
@@ -705,7 +705,7 @@ func (h *Handlers) enqueueCameraPurge(ctx context.Context, camera *models.Camera
 				target = filepath.Base(event.LocalClipPath)
 			}
 			if err := h.St.StorageJobs.Enqueue(store.JobInput{
-				ID:        event.ID + ":clip",
+				ID:        store.EventJobID(event.ID, models.JobKindClip),
 				Kind:      models.JobKindClip,
 				Target:    target,
 				BackendID: backend.ID,

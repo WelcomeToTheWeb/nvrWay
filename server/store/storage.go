@@ -546,3 +546,46 @@ func (s *StorageJobStore) ReleaseStuck(olderThan time.Time) (int64, error) {
 	}
 	return result.RowsAffected, nil
 }
+
+// EnqueueUpload queues one finalized object to the default tier.
+//
+// This is where the upload queue gets its jobs: the recorder when a segment
+// closes, the clip builder when a clip is assembled, the snapshot writer when
+// a picture is filed. Each calls this the moment the object is on disk and
+// named on its row, because "the uploader drains the queue" is only half a
+// pipeline — S7-08 shipped the drainer and verify.sh's gate 7 found the queue
+// empty, because nothing had ever filled it.
+//
+// No default backend is not an error: a server with no tier has nothing to
+// queue, and that is a configuration, not a failure. The bool says which
+// happened, so a caller that logs can log the truth.
+func (s *Store) EnqueueUpload(kind, jobID, localPath string) (bool, error) {
+	b, err := s.StorageBackends.GetDefault()
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := s.StorageJobs.Enqueue(JobInput{
+		ID:        jobID,
+		Kind:      kind,
+		Target:    localPath,
+		BackendID: b.ID,
+		Action:    models.JobActionUpload,
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// EventJobID is the one name for an event's media job rows: `<event_id>:clip`
+// and `<event_id>:snapshot`. A job row is keyed by the object it owes, and one
+// event has two objects, so the id is a key, not a uuid — which is why
+// storage_jobs.id is text (migration v2, P-08). Every writer goes through this
+// function and the uploader's eventIDFromJobID is the reader of the same
+// contract, so the suffix cannot drift between the purge, the clip builder,
+// and the snapshot writer.
+func EventJobID(eventID, kind string) string {
+	return eventID + ":" + kind
+}

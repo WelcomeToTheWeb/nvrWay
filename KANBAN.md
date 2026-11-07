@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 14 | 107 |
+| 0 | 0 | 1 | 11 | 110 |
 
 Total cards: **122**. In Progress limit: **2**.
 
@@ -45,13 +45,6 @@ _empty_
 | [`S9-08`](kanban/cards/S9-08.md) | scripts: dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh, fetch-fixture.sh | S9-04, S10-02, S10-03 |
 | [`S9-10`](kanban/cards/S9-10.md) | Docs content: architecture, configuration, api, installation (decisions, not filler) | S0-02, S6-05, S7-09, S9-06 |
 
-### Step 10 — Demo fixture, seeding, end-to-end
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S10-03`](kanban/cards/S10-03.md) | verify.sh's nine gates pass (the v1 acceptance gate) | S2-06, S3-03, S4-05, S6-04, S7-08, S7-10, S6-06, S9-07, S10-02, S2-05 |
-| [`S10-04`](kanban/cards/S10-04.md) | fs storage tier seeded as default (local-tier) and exercised by verify.sh gate 7 | S7-03, S7-08, S10-02 |
-
 ### Step 11 — Test suite CI runs
 
 | Card | Title | Depends |
@@ -67,7 +60,6 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
-| [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
 | [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
 
@@ -225,6 +217,8 @@ _empty_
 | --- | --- | --- |
 | [`S10-01`](kanban/cards/S10-01.md) | testdata/fixtures.json + scripts/fetch-fixture.sh (pinned assets, recorded hashes) | S0-01 |
 | [`S10-02`](kanban/cards/S10-02.md) | Demo camera seeded through the public API + the go2rtc demo-only source | S3-02, S3-03, S9-04, S10-01 |
+| [`S10-03`](kanban/cards/S10-03.md) | verify.sh's nine gates pass (the v1 acceptance gate) | S2-06, S3-03, S4-05, S6-04, S7-08, S7-10, S6-06, S9-07, S10-02, S2-05 |
+| [`S10-04`](kanban/cards/S10-04.md) | fs storage tier seeded as default (local-tier) and exercised by verify.sh gate 7 | S7-03, S7-08, S10-02 |
 
 ### Process — Repo mechanics
 
@@ -237,6 +231,7 @@ _empty_
 | [`P-05`](kanban/cards/P-05.md) | 'Track server/models: .gitignore''s models/ pattern ignored a Go package' | S0-05, S1-03, S1-04, S1-05, S1-06, S1-07 |
 | [`P-06`](kanban/cards/P-06.md) | Mirror the cards into the pi-kanban board's task store (kanban/pi_board.py) | P-00, P-04 |
 | [`P-07`](kanban/cards/P-07.md) | Ignore the Hindsight artifacts the memory tool drops in the repo root | P-00, P-05 |
+| [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
 | [`P-09`](kanban/cards/P-09.md) | Mirror the cards into the DeepSeek Harness workspace board (kanban/harness_board.py) | P-00, P-06 |
 | [`P-12`](kanban/cards/P-12.md) | "Production server never mounted /ws: the hub was never constructed" | S6-08 |
 | [`P-13`](kanban/cards/P-13.md) | "test_the_environment_is_all_the_worker_needs_to_start is flaky: boot() kills on a log line emitted before the SIGTERM handler exists" | S5-09 |

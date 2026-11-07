@@ -18,8 +18,17 @@ func TestNewOnMemorySqliteMigratesAndSeedsRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applied versions: %v", err)
 	}
-	if len(versions) != 1 || versions[0] != 1 {
-		t.Fatalf("expected exactly migration v1 applied, got %v", versions)
+	// Every migration in the ledger is applied at boot, in order. v2 is a
+	// no-op on sqlite (the column type was never enforced there) but it is
+	// still recorded, which is what keeps the ledger the same shape on every
+	// dialect.
+	if len(versions) != len(migrations) {
+		t.Fatalf("expected %d migrations applied, got %v", len(migrations), versions)
+	}
+	for i, v := range versions {
+		if v != migrations[i].version {
+			t.Fatalf("migration %d is version %d, want %d", i, v, migrations[i].version)
+		}
 	}
 
 	roles, err := st.Roles.ListRoles()

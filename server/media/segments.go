@@ -192,6 +192,12 @@ func (r *Recorder) recordSegment(cam models.Camera, generation int, started time
 	if err := r.St.Segments.Create(seg); err != nil {
 		return nil, fmt.Errorf("recorder: saving the segment row for %s: %w", path, err)
 	}
+	// The object is on disk and named on its row, so its obligation to the tier
+	// starts now. A queue that only the uploader knows about is how S7-08's
+	// green suite hid an empty queue from verify.sh's gate 7.
+	if _, err := r.St.EnqueueUpload(models.JobKindSegment, seg.ID, seg.Path); err != nil {
+		r.Logf("recorder: segment %s could not be queued for upload: %v", seg.ID, err)
+	}
 	return seg, nil
 }
 
@@ -207,6 +213,10 @@ func absoluteTime(started time.Time, offsetSeconds float64) time.Time {
 // event window closes.
 func (r *Recorder) tailSegments(ctx context.Context, run *run, cam models.Camera, generation int, started time.Time, proc process, argv []string) error {
 	csv := newSegmentCSV(r.SegmentListPath(cam.Slug))
+
+	// The tail's own liveness clock: the last moment this child proved it was
+	// moving footage. The stall watchdog below reads it.
+	lastSegment := started.UTC()
 
 	drain := func() {
 		entries, err := csv.readNew()
@@ -224,6 +234,7 @@ func (r *Recorder) tailSegments(ctx context.Context, run *run, cam models.Camera
 				r.Logf("recorder: %v", err)
 				continue
 			}
+			lastSegment = r.now().UTC()
 			// Footage on disk is the only proof that matters: it resets the
 			// restart backoff, it puts the camera's tile up, and it ticks the
 			// recorder's status line. One per segment, never per frame.
@@ -256,6 +267,20 @@ func (r *Recorder) tailSegments(ctx context.Context, run *run, cam models.Camera
 				drain()
 				return errWindowClosed
 			}
+			// The stall watchdog: the child claims to be running and the window
+			// is open, but no segment has landed for three segment-lengths plus
+			// slack. A half-open RTSP connection — go2rtc's producer died
+			// mid-stream, which the dev stack did — leaves ffmpeg blocked on
+			// read forever, and no input flag cuts that stall (verified
+			// against the image's ffmpeg 6.1.1 by killing the producer under a
+			// connected consumer). The silence is the only evidence there is,
+			// and ending the child is what turns it into a logged restart.
+			if idle := r.now().UTC().Sub(lastSegment); idle > r.stallLimit() {
+				r.Logf("recorder: %s: no segment for %s with the child still running — the input is stalled", cam.Slug, idle.Truncate(time.Second))
+				proc.Stop()
+				drain()
+				return errStalledInput
+			}
 		}
 	}
 }
@@ -264,6 +289,19 @@ func (r *Recorder) tailSegments(ctx context.Context, run *run, cam models.Camera
 // spent". It is not a crash: the supervisor stops without an offline broadcast
 // and without a restart, and the camera is recording again on the next signal.
 var errWindowClosed = errors.New("event window closed")
+
+// errStalledInput is the tail's name for "the child is alive and the footage
+// stopped". Unlike errWindowClosed it is a crash: the supervisor says so, takes
+// the camera's tile down, and restarts with backoff.
+var errStalledInput = errors.New("input stalled: no segment")
+
+// stallLimit is how long a running child may go without landing a segment
+// before the tail calls its input dead: three segment-lengths — the muxer's
+// own cadence, ffmpeg's startup probe, and one lost segment of slack — plus
+// ten seconds.
+func (r *Recorder) stallLimit() time.Duration {
+	return time.Duration(3*r.Cfg.SegmentSeconds+10) * time.Second
+}
 
 // recorderStatus is the plan's `recorder.status`: one broadcast per completed
 // segment, carrying what the console's status line reads.

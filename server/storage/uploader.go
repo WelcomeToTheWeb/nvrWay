@@ -108,6 +108,7 @@ type Uploader struct {
 	settings *store.SettingStore
 	sealKey  [32]byte
 	facts    JobFacts
+	sources  SourceMarker
 
 	workerID string
 	tick     time.Duration
@@ -118,6 +119,38 @@ type Uploader struct {
 	// because the tier is the one dependency this loop cannot run without and
 	// the one worth driving from a test; the default is the real Open.
 	open func(row *models.StorageBackend) (Backend, error)
+}
+
+// SourceMarker marks the row that owns an uploaded object. The job row is the
+// queue's bookkeeping; the segment's `uploaded_at` and the event's
+// `clip_uploaded_at` are what the sweeper's un-uploaded protection reads.
+// Without this marking, every segment looks un-uploaded forever and the
+// sweeper's "never destroy un-uploaded footage" rule quietly becomes "never
+// delete anything".
+type SourceMarker interface {
+	MarkSourceUploaded(job *models.StorageJob, remoteKey string) error
+}
+
+// SourceRows is the production SourceMarker: it switches on the job's kind and
+// marks the owning row through the same stores the writers use.
+type SourceRows struct {
+	Segments *store.SegmentStore
+	Events   *store.EventStore
+}
+
+func (m *SourceRows) MarkSourceUploaded(job *models.StorageJob, remoteKey string) error {
+	switch job.Kind {
+	case models.JobKindSegment:
+		return m.Segments.MarkUploaded(job.ID, remoteKey)
+	case models.JobKindClip:
+		return m.Events.MarkClipUploaded(eventIDFromJobID(job.ID), remoteKey)
+	case models.JobKindSnapshot:
+		return m.Events.MarkSnapshotUploaded(eventIDFromJobID(job.ID), remoteKey)
+	default:
+		// A delete job never reaches MarkUploaded, so an unknown kind here is
+		// the same bug `perform` names: whoever queued it did not mean this.
+		return fmt.Errorf("storage: %q has no source row to mark: %w", job.Kind, errPermanent)
+	}
 }
 
 // UploaderOptions is the loop's tuning and identity.
@@ -132,6 +165,9 @@ type UploaderOptions struct {
 	// Now is the clock. nil takes time.Now, and a test supplies a fixed one so
 	// the backoff can be asserted as an exact instant.
 	Now func() time.Time
+	// Sources marks the segment/event row an uploaded job belongs to. nil
+	// leaves the marking off — a test harness that only watches the queue.
+	Sources SourceMarker
 }
 
 // NewUploader builds the worker. `settings` may be nil, which leaves an sftp
@@ -169,6 +205,7 @@ func NewUploader(
 		settings: settings,
 		sealKey:  sealKey,
 		facts:    facts,
+		sources:  opts.Sources,
 		workerID: opts.WorkerID,
 		tick:     opts.Tick,
 		log:      opts.Log,
@@ -263,6 +300,14 @@ func (u *Uploader) process(ctx context.Context, job *models.StorageJob) error {
 			// one direction that is safe to retry: the next attempt re-puts the
 			// same object at the same key.
 			return fmt.Errorf("storage: %s %s reached the tier but the job row would not take it: %w", job.Kind, key, markErr)
+		}
+		if u.sources != nil {
+			if markErr := u.sources.MarkSourceUploaded(job, key); markErr != nil {
+				// Same safe direction as the job row: the retry re-puts the same
+				// bytes at the same key and marks the source row again, and both
+				// marks are idempotent.
+				return fmt.Errorf("storage: %s %s reached the tier but its source row would not take it: %w", job.Kind, key, markErr)
+			}
 		}
 		return nil
 	}

@@ -719,3 +719,46 @@ func TestStorageBackendKindsAreThePlanSet(t *testing.T) {
 		t.Fatal("the per-kind validation rule is wrong")
 	}
 }
+
+// TestEnqueueUploadQueuesToTheDefaultTierOrSkipsIt pins the queue's producer:
+// the recorder, the clip builder and the snapshot writer all call this, and
+// verify.sh's gate 7 found the queue permanently empty because nothing did.
+func TestEnqueueUploadQueuesToTheDefaultTierOrSkipsIt(t *testing.T) {
+	st := newTestStore(t)
+
+	// No backend at all: a skip, not an error — a server with no tier has
+	// nothing to queue, and that is a configuration.
+	queued, err := st.EnqueueUpload(models.JobKindSegment, "seg-1", "/var/lib/nvr/segments/a.mp4")
+	if err != nil {
+		t.Fatalf("EnqueueUpload with no backend: %v", err)
+	}
+	if queued {
+		t.Error("EnqueueUpload reported queued with no backend in the database")
+	}
+	if _, err := st.StorageJobs.GetByID("seg-1"); err == nil {
+		t.Error("a job row exists although there is no tier to own it")
+	}
+
+	b := &models.StorageBackend{Name: "tier", Kind: models.StorageKindFS, RootPath: t.TempDir(), Enabled: true, IsDefault: true}
+	if err := st.StorageBackends.Create(b); err != nil {
+		t.Fatalf("creating the backend: %v", err)
+	}
+
+	queued, err = st.EnqueueUpload(models.JobKindClip, "ev-1:clip", "/var/lib/nvr/clips/ev-1.mp4")
+	if err != nil {
+		t.Fatalf("EnqueueUpload with a default tier: %v", err)
+	}
+	if !queued {
+		t.Fatal("EnqueueUpload skipped a queue that has a default tier")
+	}
+	job, err := st.StorageJobs.GetByID("ev-1:clip")
+	if err != nil {
+		t.Fatalf("reading the job: %v", err)
+	}
+	if job.Action != models.JobActionUpload || job.Kind != models.JobKindClip || job.BackendID != b.ID {
+		t.Errorf("job is action=%q kind=%q backend=%q, want upload/clip/%s", job.Action, job.Kind, job.BackendID, b.ID)
+	}
+	if job.Target != "/var/lib/nvr/clips/ev-1.mp4" {
+		t.Errorf("target is %q, want the local path the uploader will open", job.Target)
+	}
+}

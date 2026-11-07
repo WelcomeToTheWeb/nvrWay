@@ -504,6 +504,13 @@ func (b *ClipBuilder) Assemble(ctx context.Context, eventID string) error {
 
 	b.Logf("clips: event %s: %d segment(s) → %s (window %.2fs, footage %.2fs, clip %.2fs, ffprobe %s)",
 		ev.ID, len(segments), outPath, windowSeconds, sumSeconds, clipSeconds, formatSeconds(measured, probeErr))
+
+	// The clip exists the moment the row says so, and the tier has not seen it
+	// until this line runs. Same lesson as the recorder's segment enqueue: the
+	// queue is filled by whoever finalizes an object, not by the drainer.
+	if _, err := b.St.EnqueueUpload(models.JobKindClip, store.EventJobID(ev.ID, models.JobKindClip), outPath); err != nil {
+		b.Logf("clips: event %s: the clip could not be queued for upload: %v", ev.ID, err)
+	}
 	return nil
 }
 

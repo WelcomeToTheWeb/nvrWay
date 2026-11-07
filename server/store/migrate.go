@@ -61,6 +61,21 @@ var migrations = []migration{
 	{version: 1, name: "baseline_auto_migrate", fn: func(db *gorm.DB) error {
 		return db.AutoMigrate(baseModels...)
 	}},
+	// v2 widens storage_jobs.id from uuid to text. A job row is keyed by its
+	// object, and an event has two objects, so the queue holds them as
+	// `<event_id>:clip` and `<event_id>:snapshot` — ids that are not uuids.
+	// sqlite never enforced the column type, so the suite could not see it;
+	// Postgres answered every clip and snapshot enqueue with
+	// `invalid input syntax for type uuid`, which is P-08 arriving in the
+	// dev stack exactly as the card predicted. The ALTER is a no-op where the
+	// column is already text, and sqlite has no ALTER COLUMN, hence the
+	// dialect guard.
+	{version: 2, name: "storage_jobs_id_is_text", fn: func(db *gorm.DB) error {
+		if db.Dialector.Name() != "postgres" {
+			return nil
+		}
+		return db.Exec("ALTER TABLE storage_jobs ALTER COLUMN id TYPE text").Error
+	}},
 }
 
 // Migrate applies every pending migration, each inside its own transaction,

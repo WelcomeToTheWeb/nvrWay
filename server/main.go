@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,10 +12,13 @@ import (
 	"time"
 	_ "time/tzdata" // retention and event windows are computed in the operator's zone
 
+	"nvr/server/api"
 	"nvr/server/config"
 	"nvr/server/media"
 	"nvr/server/models"
+	"nvr/server/storage"
 	"nvr/server/store"
+	"nvr/server/sweeper"
 	"nvr/server/webhooks"
 )
 
@@ -148,6 +153,41 @@ func main() {
 	log.Printf("Clip builder: assembling into %s, armed %ds after an event's last signal (pre-roll %ds, post-roll %ds, event max %ds)",
 		cfg.ClipsDir, cfg.PostRollSeconds, cfg.PreRollSeconds, cfg.PostRollSeconds, cfg.EventMaxSeconds)
 
+	// Step 7 (S7-08): the queue worker, in the plan's boot order — after the
+	// writers that fill the queue (recorder, clip builder, snapshot handler),
+	// before the API that reports on it.
+	//
+	// This wiring is why verify.sh's gate 7 exists. S7-08 shipped the drainer
+	// with a green suite, and the suite seeded the queue itself: nothing in the
+	// production binary ever started the uploader, so the queue was empty in
+	// the field for a reason no test could see. The sweeper below had the same
+	// shape of gap.
+	sealKey, sealErr := cfg.SealKey()
+	if sealErr != nil {
+		// Not fatal: the fs tier needs no key, and a deployment with no sftp
+		// backend runs correctly with an unsealable config it never reads.
+		// The storage routes refuse sftp rows with the same stated reason.
+		log.Printf("WARNING: NVR_SECRET_KEY is unusable (%v); sftp backends cannot open, every other tier is unaffected", sealErr)
+	}
+	workerHost, _ := os.Hostname()
+	uploader, err := storage.NewUploader(st.StorageBackends, st.StorageJobs, st.Settings, sealKey,
+		storage.NewManifestFacts(st.Segments, st.Cameras),
+		storage.UploaderOptions{
+			WorkerID: fmt.Sprintf("%s:%d", workerHost, os.Getpid()),
+			Tick:     time.Duration(cfg.UploaderTickSecs) * time.Second,
+			Sources:  &storage.SourceRows{Segments: st.Segments, Events: st.Events},
+		})
+	if err != nil {
+		log.Fatalf("storage: the uploader could not be built: %v", err)
+	}
+	go func() {
+		if err := uploader.Run(ctx, nil); err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("Uploader: stopped: %v", err)
+		}
+	}()
+	log.Printf("Uploader: draining the queue every %ds as %q; uploads mark their source row, which is what the sweeper's un-uploaded protection reads",
+		cfg.UploaderTickSecs, fmt.Sprintf("%s:%d", workerHost, os.Getpid()))
+
 	// Step 6 (S6-06): the outbound notifier. It is one object owned by the process
 	// because it owns the goroutines a close spawns and the context their retry
 	// ladders run on — a per-request deliverer would mean a per-request ladder that
@@ -181,6 +221,21 @@ func main() {
 		notifier.Close()
 	}()
 
+	sweep := sweeper.New(st, sweeper.Config{
+		LocalRetentionDays:  cfg.LocalRetentionDays,
+		RemoteRetentionDays: cfg.RemoteRetentionDays,
+		EventRetentionDays:  cfg.EventRetentionDays,
+		PreRollSeconds:      cfg.PreRollSeconds,
+		PostRollSeconds:     cfg.PostRollSeconds,
+	}, sweeperBroadcast(handlers))
+	go func() {
+		if err := sweep.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("Sweeper: stopped: %v", err)
+		}
+	}()
+	log.Printf("Sweeper: every %s — local %dd, remote %dd (0 = keep forever), events %dd",
+		sweeper.DefaultInterval, cfg.LocalRetentionDays, cfg.RemoteRetentionDays, cfg.EventRetentionDays)
+
 	srv := &http.Server{
 		Addr:    cfg.ServerPort,
 		Handler: router,
@@ -213,6 +268,16 @@ func main() {
 		log.Printf("Server forced to shutdown: %v", err)
 	}
 	log.Println("nvrWay server exited")
+}
+
+// sweeperBroadcast adapts the sweeper's one-argument report callback to the
+// hub's typed fan-out. A nil hub (no `/ws` route) yields a nil callback, which
+// the sweeper already treats as "log the sweep, broadcast nothing".
+func sweeperBroadcast(handlers *api.Handlers) func(any) error {
+	if handlers.Hub == nil {
+		return nil
+	}
+	return func(rep any) error { return handlers.Hub.Broadcast("storage.queue", rep) }
 }
 
 // sealKeyForNotifier is the key that opens a webhook row's stored signing secret.

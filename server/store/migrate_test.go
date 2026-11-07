@@ -22,8 +22,8 @@ func TestMigrateIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applied versions: %v", err)
 	}
-	if len(versions) != 1 {
-		t.Fatalf("expected 1 recorded migration after 4 passes, got %v", versions)
+	if len(versions) != len(migrations) {
+		t.Fatalf("expected %d recorded migrations after 4 passes, got %v", len(migrations), versions)
 	}
 
 	var count int64

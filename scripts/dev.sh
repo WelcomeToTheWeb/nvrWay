@@ -84,13 +84,23 @@ for cam in json.load(sys.stdin).get("cameras", []):
         print(cam["id"]); break
 ') || true
     if [ -n "$camera_id" ]; then
-        # A camera seeded by an older payload (continuous) would starve under
-        # the motion gate forever; the PUT merges, so naming one field changes
-        # one field.
-        mode=$(api_auth -s "$api/api/v1/cameras/$camera_id" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("record_mode",""))')
-        if [ "$mode" != events ]; then
-            echo "demo: existing camera is record_mode=$mode — moving it to events (the gate starves a static loop otherwise)"
-            api_auth -X PUT "$api/api/v1/cameras/$camera_id" -d '{"record_mode": "events"}' -o /dev/null
+        # A camera seeded by an older payload must be moved forward, and the
+        # two fields that changed are both load-bearing:
+        #   record_mode=events — the motion gate starves a static loop in
+        #     continuous mode (422 frames, 1 inferred, 0 events);
+        #   -g 50 in the source — the recorder copies the stream, so segments
+        #     can only cut at keyframes, and the default 250-frame GOP made
+        #     every segment 10 s against SEGMENT_SECONDS=5.
+        demo_source='exec:ffmpeg -re -loop 1 -i /fixtures/bus.jpg -pix_fmt yuv420p -c:v libx264 -preset veryfast -g 50 -f h264 -'
+        need=$(api_auth -s "$api/api/v1/cameras/$camera_id" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print("yes" if d.get("record_mode") != "events" or d.get("source_uri") != sys.argv[1] else "no")
+' "$demo_source")
+        if [ "$need" = yes ]; then
+            echo "demo: existing camera predates the current demo payload — moving it to events + a 2 s GOP source"
+            api_auth -X PUT "$api/api/v1/cameras/$camera_id" \
+                -d "{\"record_mode\": \"events\", \"source_uri\": \"$demo_source\"}" -o /dev/null
         fi
     fi
     if [ -z "$camera_id" ]; then
@@ -104,7 +114,7 @@ for cam in json.load(sys.stdin).get("cameras", []):
         camera_id=$(api_auth -X POST "$api/api/v1/cameras" -d '{
             "slug": "demo-doorbell",
             "name": "Demo Doorbell",
-            "source_uri": "exec:ffmpeg -re -loop 1 -i /fixtures/bus.jpg -pix_fmt yuv420p -c:v libx264 -preset veryfast -f h264 -",
+            "source_uri": "exec:ffmpeg -re -loop 1 -i /fixtures/bus.jpg -pix_fmt yuv420p -c:v libx264 -preset veryfast -g 50 -f h264 -",
             "record_mode": "events",
             "detection_enabled": true,
             "detection_fps": 5,

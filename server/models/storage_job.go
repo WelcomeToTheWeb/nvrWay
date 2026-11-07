@@ -57,8 +57,14 @@ const JobMaxAttempts = 20
 // and enqueue is idempotent: enqueuing the same object twice cannot create a
 // pile of duplicate uploads, which is what a tick-driven queue left to itself
 // becomes.
+//
+// The column is text, not uuid: an event's two objects are `<event_id>:clip`
+// and `<event_id>:snapshot`, and those ids are not uuids. The baseline shipped
+// the column as uuid, sqlite never enforced it, and Postgres rejected every
+// clip and snapshot job — migration v2 widens existing schemas, and this tag
+// keeps new ones born right (P-08).
 type StorageJob struct {
-	ID   string `gorm:"type:uuid;primaryKey" json:"id"`
+	ID   string `gorm:"type:text;primaryKey" json:"id"`
 	Kind string `gorm:"not null;index" json:"kind"`
 
 	// Target is the local path (upload) or the remote key (delete) the action

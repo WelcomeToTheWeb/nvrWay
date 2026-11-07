@@ -309,6 +309,11 @@ func TestRecorderIngestCommandIsThePlansLine(t *testing.T) {
 		"ffmpeg",
 		"-hide_banner", "-loglevel", "error",
 		"-rtsp_transport", "tcp",
+		// Not the plan's line: a half-open RTSP connection (go2rtc's producer
+		// died mid-stream) makes ffmpeg block on read forever, and a child that
+		// never exits never reaches the supervisor's restart. The socket read
+		// timeout turns that silent death into a logged exit and a respawn.
+		"-timeout", "10000000",
 		"-i", cfg.Go2rtcRTSPURL + "/porch",
 		"-c", "copy",
 		"-f", "segment",
@@ -839,4 +844,73 @@ func TestRealFfmpegForcedKillResumesNumbering(t *testing.T) {
 		t.Fatalf("the camera's status did not go online → offline → online after the forced kill (online=%v offline=%v online-again=%v): %v",
 			sawOnline, sawOffline, sawOnlineAgain, hub.cameraStatusLog(cam.ID))
 	}
+}
+
+// TestWindowReopenRespawnsASilentExitLoop is the stranding bug the dev stack
+// hit: an events window ends, the tail stops the child, and the supervisor
+// exits silently — correct, that is not a crash. But the run entry stayed in
+// the map, and reconcile skips cameras that already have a run. The next
+// signal reopens the window seconds later, before any poll pass can clean the
+// entry, and from then on every pass sees "already running" for a loop that
+// owns nothing: the camera records nothing forever while its tile stays green.
+// The loop now removes its own entry on the way out, so the reopen's nudge
+// re-spawns.
+func TestWindowReopenRespawnsASilentExitLoop(t *testing.T) {
+	rec, _, spawns, clock := newTestRecorder(t)
+	// No background reconcile: the reopen's nudge is the only pass that will
+	// ever run, which is the field shape (PollInterval 10 s, signals every
+	// few seconds) and what makes the skip permanent there.
+	rec.PollInterval = 10 * time.Second
+	st := rec.St
+	cam := addCamera(t, st, "garden", models.RecordModeEvents)
+	startRecorder(t, rec)
+
+	if !rec.OpenWindow(cam.ID) {
+		t.Fatal("OpenWindow did not open a window")
+	}
+	waitFor(t, 3*time.Second, "the events camera to start recording", func() bool {
+		return len(spawns.liveProcs()) == 1
+	})
+
+	// The window ends: the tail's own tick stops the child and the supervisor
+	// returns without a log, a restart, or an offline broadcast.
+	clock.Advance(time.Duration(rec.Cfg.PostRollSeconds+1) * time.Second)
+	waitFor(t, 3*time.Second, "the child to end with the window", func() bool {
+		return len(spawns.liveProcs()) == 0
+	})
+
+	// The next signal opens a new window. If the dead supervisor still owns
+	// the camera's entry, this nudge's reconcile skips it and nothing spawns.
+	if !rec.OpenWindow(cam.ID) {
+		t.Fatal("the next signal did not open a window")
+	}
+	waitFor(t, 3*time.Second, "a new ffmpeg after the reopen", func() bool {
+		return spawns.spawns() >= 2
+	})
+}
+
+// TestStalledInputIsRestarted is the stall watchdog. The child never exits:
+// a half-open RTSP connection — go2rtc's producer died mid-stream, which is
+// what the dev stack hit — leaves ffmpeg blocked on read forever, and no
+// input flag cuts that stall (verified against the image's ffmpeg). The
+// silence is the only evidence, so the tail ends the child on it, and the
+// supervisor's restart path — log, offline tile, backoff, respawn — runs.
+func TestStalledInputIsRestarted(t *testing.T) {
+	rec, _, spawns, clock := newTestRecorder(t)
+	st := rec.St
+	addCamera(t, st, "porch", models.RecordModeContinuous)
+	startRecorder(t, rec)
+
+	waitFor(t, 3*time.Second, "the spawn", func() bool { return spawns.spawns() == 1 })
+	first := spawns.processes()[0]
+
+	// The fake child never writes a segment line; the clock passes the stall
+	// limit and the tail's own tick notices the silence.
+	clock.Advance(rec.stallLimit() + 2*time.Second)
+	waitFor(t, 3*time.Second, "the stalled child to be stopped", func() bool {
+		return first.stopCount() >= 1
+	})
+	waitFor(t, 3*time.Second, "a replacement spawn after the stall", func() bool {
+		return spawns.spawns() >= 2
+	})
 }

@@ -60,6 +60,14 @@ retry, `failed` at 20 attempts, the enable flag), and the key layout
 `nvr/<slug>/<YYYY>/<MM>/<DD>/<basename>.mp4`, `nvr/events/<id>/{clip,snapshot}`
 (S7-07, S7-08).
 
+**A job row is keyed by the object it owes** (P-08): a segment's job id is the
+segment id, and an event's two objects are `<event_id>:clip` and
+`<event_id>:snapshot`, named by the one helper `store.EventJobID` — the purge
+routes, the clip builder and the snapshot writer all call it, and the uploader
+parses the same suffix back. That id is a key, not a uuid, which is why
+`storage_jobs.id` is text (migration v2); enqueue is idempotent because the
+object's identity **is** the row's identity.
+
 ## The clock rule
 
 **The decision this section must state: the server clock owns event time, and

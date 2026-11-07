@@ -1,0 +1,18 @@
+# Agent Note: verify-sh-nine-gates-harness
+
+Status: implemented
+
+## Problem
+
+The v1 acceptance criterion is nine HTTP-observed pass lines on the live stack — the only harness that can catch components that were built, unit-tested against their own fixtures, and never wired into the shipped binary (the P-12 class). Writing it surfaced three harness-side traps that would produce false failures and had to be designed around, and the gate wording in the plan did not survive contact with the shipped APIs.
+
+## Decision
+
+`scripts/verify.sh` (~350 lines, `set -uo pipefail`) runs nine gates against the live dev stack in the order 1,2,3,9a,4,5a,6,8,5b,9b,7 (webhook registered before the event that will close; queue gate last because it waits on upload ticks). Every assertion is over HTTP — never the DB, never the media tree. Helpers: `api_auth` (bearer curl), `jget` (json path), `env_get` (docker/.env). It builds and starts the in-repo testidp (`go build -o /tmp/nvr-verify-testidp ./sso/testidp`, `-listen :9500 -issuer http://172.19.0.1:9500` — the bridge gateway, since the container must reach the host) and a python3 ThreadingHTTPServer listener on 0.0.0.0:9501, both killed by the EXIT trap. Gate 6 queries `GET /api/v1/segments?from=&to=` (RFC3339 window) and asserts 2-of-3 of the last spans within ±1.5 s of SEGMENT_SECONDS plus the newest start_ts strictly advancing over 15 s. Gate 7 polls `POST /:id/prefixes?prefix=nvr/events/<id>/` for clip.mp4 (24×5 s), then disables the backend, `requeue?kind=clip`, and asserts 0 uploading / >0 pending before re-enabling. Gate 8 registers the OIDC provider with `name` and walks authorize/consent/callback/exchange BY NAME (both `providerFor` and the PUT route resolve GetByName). Gate 9's signing secret is stable across runs in /tmp/nvr-verify-hook-secret; 9a deletes any previous verify-listener endpoint before registering. Summary lines: `verify: 9 gates passed` / `verify: N gate(s) failed`, exit code matches.
+## Alternatives considered
+
+Gate 6 as planned ("count strictly increasing") lost: the list is ASC by start_ts and `limit` caps the count, so a busy camera's count saturates at the cap and can never rise — the newest-row advance is the same claim without the cap. Gate 7's planned `find /var/lib/nvr/remote -name clip.mp4` lost to the prefixes route: the card's own exit criterion says every gate over HTTP. Gate 9's per-run secret lost after a run failed it: an event already open when the script starts closes on its own schedule, and that close raced the endpoint recreation by two seconds — the deliverer reads webhook rows at close time, so the delivery went out under the previous run's row and verified under no secret the new run knew (the product behaved exactly to spec; the harness had assumed the secret rotates atomically with the row). A stable secret keeps the HMAC proof (wrong body or wrong secret still fails) and removes the race. Asserting gate 3 via go2rtc's API directly lost to the server's probe endpoint: the API needs basic auth the script would have to carry, and the probe is the shipped path the console uses anyway.
+## Consequences
+
+The script is the v1 acceptance gate and the regression harness for every later card (S11-04's Playwright specs run against the same stack). Cost: ~8 min per run, dominated by gate 4's event wait and gate 7's upload ticks; the stable secret means the webhook endpoint's secret is not per-run (acceptable for a dev-stack harness; the product's per-endpoint sealing is unchanged). The listener and testidp bind host ports 9500/9501 — one verify run at a time. Gate 6's 2-of-3 span tolerance means a systematically wrong segment length still fails, but one boundary segment never does.
+

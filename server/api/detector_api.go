@@ -470,5 +470,12 @@ func (h *Handlers) writeEventSnapshot(eventID, snapshotBase64 string) {
 		// The file exists and the row does not point at it. The sweeper treats a
 		// file no row claims as garbage, so this is a lost picture and not a leak.
 		log.Printf("events: snapshot written for %s but the row could not record it: %v", eventID, err)
+		return
+	}
+	// The picture is filed and named on the row, so it owes the tier a copy.
+	// The queue is filled by whoever finalizes an object — recorder, clip
+	// builder, and here.
+	if _, err := h.St.EnqueueUpload(models.JobKindSnapshot, store.EventJobID(eventID, models.JobKindSnapshot), path); err != nil {
+		log.Printf("events: snapshot for %s could not be queued for upload: %v", eventID, err)
 	}
 }

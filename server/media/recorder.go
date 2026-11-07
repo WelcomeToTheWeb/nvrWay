@@ -276,8 +276,15 @@ func (r *Recorder) SetSourceCommand(f func(cam *models.Camera) []string) {
 // command because it is a property of the source, and the source is the part a
 // suite overrides.
 func (r *Recorder) rtspSource(cam *models.Camera) []string {
+	// `-timeout` (µs) is the socket I/O timeout: a stalled input — go2rtc's
+	// producer frozen mid-stream, which the dev stack did — makes ffmpeg
+	// answer "Operation timed out" and exit within ten seconds, which is an
+	// exit the supervisor's restart exists to handle (verified by SIGSTOP-ing
+	// the producer under a connected recorder). The tail's stall watchdog is
+	// the second layer, for a child that hangs without ever exiting.
 	return []string{
 		"-rtsp_transport", "tcp",
+		"-timeout", "10000000",
 		"-i", strings.TrimSuffix(r.Cfg.Go2rtcRTSPURL, "/") + "/" + cam.Slug,
 		"-c", "copy",
 	}
@@ -607,6 +614,19 @@ func (r *Recorder) startRunLocked(ctx context.Context, cam models.Camera) {
 		defer close(run.done)
 		defer cancel()
 		r.cameraLoop(runCtx, run)
+		// The map entry means "a supervisor owns this camera", and a loop that
+		// has returned owns nothing. A stale entry strands the camera for good:
+		// reconcile skips cameras that already have a run, so a loop that exits
+		// while its window stays open — the silent window-close exit over a hung
+		// ffmpeg, with event signals still extending the window — is never
+		// re-spawned, and the camera records nothing while its tile stays green.
+		// The identity check keeps this from deleting a successor's entry when
+		// reconcile replaced this run before the loop unwound.
+		r.mu.Lock()
+		if r.runs[cam.ID] == run {
+			delete(r.runs, cam.ID)
+		}
+		r.mu.Unlock()
 	}()
 }
 

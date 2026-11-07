@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"nvr/server/models"
 	"nvr/server/store"
 )
@@ -181,6 +183,86 @@ func (f *uploaderFixture) breakTier(t *testing.T) {
 	row.RootPath = filepath.Join(blocker, "sub")
 	if err := f.st.StorageBackends.Update(row, false, false, false, false); err != nil {
 		t.Fatalf("breaking the tier: %v", err)
+	}
+}
+
+// TestUploaderMarksTheSourceRowThatOwnsTheObject is the other half of an
+// upload: the job row says the queue is done, and the segment's `uploaded_at`
+// and the event's `clip_uploaded_at` say the footage is safe. The sweeper's
+// un-uploaded protection reads the source rows, so an uploader that marks only
+// the queue would make every segment look un-uploaded forever — and its
+// "never destroy un-uploaded footage" rule would quietly become "never delete
+// anything".
+func TestUploaderMarksTheSourceRowThatOwnsTheObject(t *testing.T) {
+	f := newUploaderFixture(t)
+
+	u, err := NewUploader(f.st.StorageBackends, f.st.StorageJobs, f.st.Settings, sealKey(t),
+		NewManifestFacts(f.st.Segments, f.st.Cameras),
+		UploaderOptions{
+			WorkerID: "test-worker", Tick: 5 * time.Millisecond,
+			Sources: &SourceRows{Segments: f.st.Segments, Events: f.st.Events},
+		})
+	if err != nil {
+		t.Fatalf("NewUploader: %v", err)
+	}
+
+	f.enqueueSegment(t)
+
+	// An event with both objects, so one Tick settles all three kinds.
+	cam, err := f.st.Cameras.GetBySlug(uploaderTestSlug)
+	if err != nil {
+		t.Fatalf("reading the camera: %v", err)
+	}
+	ev := &models.Event{
+		ID: uuid.NewString(), EventKey: "k:zone:person:1", CameraID: cam.ID,
+		Action: "close", StartedAt: f.start, EndedAt: f.start.Add(30 * time.Second),
+		Open: false, Severity: 2,
+	}
+	if err := f.st.DB.Create(ev).Error; err != nil {
+		t.Fatalf("creating the event: %v", err)
+	}
+	local := t.TempDir()
+	clip := filepath.Join(local, "clip.mp4")
+	snap := filepath.Join(local, "snapshot.jpg")
+	for _, p := range []string{clip, snap} {
+		if err := os.WriteFile(p, []byte("bytes"), 0o644); err != nil {
+			t.Fatalf("writing %s: %v", p, err)
+		}
+	}
+	for _, in := range []store.JobInput{
+		{ID: ev.ID + ":clip", Kind: models.JobKindClip, Target: clip, BackendID: f.row.ID, Action: models.JobActionUpload},
+		{ID: ev.ID + ":snapshot", Kind: models.JobKindSnapshot, Target: snap, BackendID: f.row.ID, Action: models.JobActionUpload},
+	} {
+		if err := f.st.StorageJobs.Enqueue(in); err != nil {
+			t.Fatalf("enqueue %s: %v", in.ID, err)
+		}
+	}
+
+	settled, err := u.Tick(context.Background())
+	if err != nil {
+		t.Fatalf("Tick: %v", err)
+	}
+	if settled != 3 {
+		t.Fatalf("Tick settled %d jobs, want 3", settled)
+	}
+
+	seg, err := f.st.Segments.GetByID(f.segmentID)
+	if err != nil {
+		t.Fatalf("reading the segment: %v", err)
+	}
+	if !seg.Uploaded() || seg.RemoteKey == "" {
+		t.Errorf("segment after upload: uploaded_at=%v remote_key=%q, want both set", seg.UploadedAt, seg.RemoteKey)
+	}
+
+	fresh, err := f.st.Events.GetByID(ev.ID)
+	if err != nil {
+		t.Fatalf("reading the event: %v", err)
+	}
+	if !fresh.ClipUploaded() {
+		t.Error("event.clip_uploaded_at is nil after the clip job settled")
+	}
+	if !fresh.SnapshotUploaded() {
+		t.Error("event.snapshot_uploaded_at is nil after the snapshot job settled")
 	}
 }
 
