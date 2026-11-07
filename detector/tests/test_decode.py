@@ -9,10 +9,14 @@ here rather than on a live camera.
 
 from __future__ import annotations
 
+import threading
+
 import cv2
 import numpy as np
 import pytest
+import requests
 
+from nvr_detector import mjpeg
 from nvr_detector import model as model_module
 from nvr_detector.mjpeg import DEFAULT_BACKOFF_SECONDS, MjpegStream, stream_url
 from nvr_detector.model import (
@@ -144,6 +148,48 @@ def test_the_stream_url_is_the_go2rtc_mjpeg_endpoint_for_the_det_tap():
     frame and stop."""
     assert stream_url("http://go2rtc:1984", "porch_det") == "http://go2rtc:1984/api/stream.mjpeg?src=porch_det"
     assert stream_url("http://go2rtc:1984/", "porch_det") == "http://go2rtc:1984/api/stream.mjpeg?src=porch_det"
+
+
+def test_the_default_opener_carries_basic_auth_when_credentials_are_given(monkeypatch):
+    """go2rtc's API enforces the basic auth the server pushes into
+    `api: {username, password}` (S9-04); the tap is part of that API, so the
+    default opener must send the credentials or read a 401 body forever."""
+    seen: dict = {}
+
+    def fake_get(url, **kwargs):
+        seen.update(kwargs)
+        raise requests.ConnectionError("stop before the network")
+
+    monkeypatch.setattr(mjpeg.requests, "get", fake_get)
+    with pytest.raises(requests.ConnectionError):
+        mjpeg._default_opener("http://go2rtc:1984/api/stream.mjpeg?src=a_det", 10.0, ("nvr", "pw"))
+    assert seen["auth"] == ("nvr", "pw")
+
+    seen.clear()
+    with pytest.raises(requests.ConnectionError):
+        mjpeg._default_opener("http://go2rtc:1984/api/stream.mjpeg?src=a_det", 10.0, None)
+    assert seen["auth"] is None
+
+
+def test_the_stream_sends_its_credentials_on_the_default_path(monkeypatch):
+    """`auth=` on the stream reaches the socket even though the suite's opener
+    seam replaces the default — the closure is built around the credentials."""
+    seen: list = []
+
+    def fake_get(url, **kwargs):
+        seen.append(kwargs.get("auth"))
+        raise requests.ConnectionError("nope")
+
+    monkeypatch.setattr(mjpeg.requests, "get", fake_get)
+    stop = threading.Event()
+    stream = MjpegStream(
+        "http://go2rtc:1984/api/stream.mjpeg?src=a_det",
+        auth=("nvr", "pw"),
+        stop=stop,
+        sleep=lambda _s: stop.set(),
+    )
+    assert list(stream) == []
+    assert seen and seen[0] == ("nvr", "pw")
 
 
 # -- S5-03: the class set --------------------------------------------------

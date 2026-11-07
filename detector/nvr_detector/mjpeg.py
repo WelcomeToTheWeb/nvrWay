@@ -99,11 +99,14 @@ def decode_part(part: bytes) -> Optional[np.ndarray]:
     return frame
 
 
-def _default_opener(url: str, timeout: float) -> requests.Response:
+def _default_opener(
+    url: str, timeout: float, auth: Optional[tuple[str, str]] = None
+) -> requests.Response:
     return requests.get(
         url,
         stream=True,
         timeout=timeout,
+        auth=auth,
         headers={"Accept": "multipart/x-mixed-replace"},
     )
 
@@ -125,6 +128,7 @@ class MjpegStream:
         timeout: float = 10.0,
         backoff: float = DEFAULT_BACKOFF_SECONDS,
         opener: Optional[Callable[[str, float], object]] = None,
+        auth: Optional[tuple[str, str]] = None,
         sleep: Callable[[float], None] = time.sleep,
         stop: Optional["object"] = None,
     ) -> None:
@@ -132,7 +136,12 @@ class MjpegStream:
         self.name = name or url
         self.timeout = float(timeout)
         self.backoff = float(backoff)
-        self._opener = opener or _default_opener
+        # go2rtc's API is behind basic auth the moment `api.username` is set
+        # (S9-04), and the tap is part of that API: without credentials the
+        # endpoint answers 401 as `text/plain`, which reads as "not an mjpeg
+        # stream" forever. `auth` is (user, password) or None for an open API.
+        self.auth = auth
+        self._opener = opener or (lambda u, t: _default_opener(u, t, auth))
         self._sleep = sleep
         self._stop = stop
 

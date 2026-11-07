@@ -12,6 +12,8 @@ them has a default that works in the compose file this repository ships:
     DET_HTTP_TIMEOUT   10                        seconds, for both directions
     DET_MAX_CAMERAS    12                        ceiling on camera threads
     GO2RTC_URL         http://go2rtc:1984        the mjpeg tap's base
+    GO2RTC_USERNAME    (empty)                   basic auth for that API, with
+    GO2RTC_PASSWORD    (empty)                   GO2RTC_PASSWORD — both or neither
 
 A bad number is not fatal: it is logged and the default is used, which is how the
 server's own config loader behaves, so one typo in one variable does not stop
@@ -84,6 +86,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     token = os.environ.get("NVR_WORKER_TOKEN", "").strip()
     model_path = _env_raw("DET_MODEL_PATH", DEFAULT_MODEL_PATH)
     go2rtc_url = _env_raw("GO2RTC_URL", DEFAULT_GO2RTC_URL)
+    # The tap is part of go2rtc's API, and that API is behind basic auth the
+    # moment `api.username` is set (S9-04). Both parts or neither: half a
+    # credential is a 401 with a friendlier header.
+    go2rtc_user = os.environ.get("GO2RTC_USERNAME", "").strip()
+    go2rtc_pass = os.environ.get("GO2RTC_PASSWORD", "").strip()
+    go2rtc_auth = (go2rtc_user, go2rtc_pass) if go2rtc_user and go2rtc_pass else None
     http_timeout = _env_number("DET_HTTP_TIMEOUT", DEFAULT_HTTP_TIMEOUT)
     max_cameras = _env_int("DET_MAX_CAMERAS", DEFAULT_MAX_CAMERAS)
     providers = providers_from_env()
@@ -111,11 +119,12 @@ def main(argv: Optional[list[str]] = None) -> int:
                 pass
 
     log.info(
-        "nvr_detector: server=%s model=%s providers=%s go2rtc=%s timeout=%.1fs max_cameras=%d",
+        "nvr_detector: server=%s model=%s providers=%s go2rtc=%s auth=%s timeout=%.1fs max_cameras=%d",
         server_url,
         model_path,
         ",".join(providers),
         go2rtc_url,
+        "on" if go2rtc_auth else "off",
         http_timeout,
         max_cameras,
     )
@@ -154,6 +163,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         model,
         max_cameras=max_cameras,
         go2rtc_url=go2rtc_url,
+        go2rtc_auth=go2rtc_auth,
         http_timeout=http_timeout,
     )
 

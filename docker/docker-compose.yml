@@ -141,6 +141,12 @@ services:
       NVR_SERVER_URL: "http://server:8080"
       NVR_WORKER_TOKEN: ${WORKER_TOKEN:-}
       DET_PROVIDERS: ${DET_PROVIDERS:-CPUExecutionProvider}
+      # The mjpeg tap is part of go2rtc's API, and that API enforces basic
+      # auth from the sidecar's next boot once the server pushes
+      # `api: {username, password}` (S9-04). Without these the tap reads a
+      # 401 body forever and calls it "not an mjpeg stream".
+      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
+      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
       TZ: UTC
     volumes:
       - nvr_models:/models

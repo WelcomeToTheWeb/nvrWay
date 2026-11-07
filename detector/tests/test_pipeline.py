@@ -18,6 +18,7 @@ import time
 import pytest
 
 from nvr_detector import __main__ as entrypoint
+from nvr_detector import pipeline as pipeline_module
 from nvr_detector.client import ServerClient
 from nvr_detector.pipeline import CameraPipeline, Worker
 
@@ -286,6 +287,45 @@ def test_the_worker_survives_a_server_that_never_answers(caplog):
     worker.run(stop, poll=0.1, flush_every=0.1)
     assert worker.camera_slugs() == ()
     assert "no config from" in caplog.text
+
+
+def test_the_worker_hands_its_credentials_to_the_taps_it_builds(monkeypatch):
+    """S10-02: go2rtc's API enforces the basic auth the server pushes (S9-04),
+    and the mjpeg tap is part of that API — a live stack proved a pipeline
+    without credentials reads the 401 body forever and calls it "not an mjpeg
+    stream". The credentials must survive Worker → CameraPipeline → MjpegStream,
+    which is exactly the chain this test walks."""
+    seen: list = []
+    real = pipeline_module.MjpegStream
+
+    class Capturing(real):
+        def __init__(self, url, **kw):
+            seen.append(kw.get("auth"))
+            super().__init__(url, **kw)
+
+        def __iter__(self):
+            return iter(())
+
+    monkeypatch.setattr(pipeline_module, "MjpegStream", Capturing)
+    session = StubSession(
+        [StubResult(200, config_payload("porch"))],
+        default=StubResult(200, {"accepted": 0, "events": []}),
+    )
+    client = ServerClient("http://server:8080", "tok", session=session, sleep=lambda _s: None)
+    worker = Worker(
+        client,
+        FakeModel(),
+        go2rtc_auth=("nvr", "pw"),
+        clock=FakeClock(1000.0, 1.0),
+        sleep=lambda _s: None,
+    )
+    worker.apply_config(client.get_config())
+
+    deadline = time.monotonic() + 5.0
+    while not seen and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert seen == [("nvr", "pw")]
+    worker.shutdown()
 
 
 def test_the_worker_beats_the_heartbeat_on_the_shipped_loop():

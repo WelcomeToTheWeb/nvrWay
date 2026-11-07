@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 15 | 106 |
+| 0 | 0 | 1 | 14 | 107 |
 
 Total cards: **122**. In Progress limit: **2**.
 
@@ -49,7 +49,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S10-02`](kanban/cards/S10-02.md) | Demo camera seeded through the public API + the go2rtc demo-only source | S3-02, S3-03, S9-04, S10-01 |
 | [`S10-03`](kanban/cards/S10-03.md) | verify.sh's nine gates pass (the v1 acceptance gate) | S2-06, S3-03, S4-05, S6-04, S7-08, S7-10, S6-06, S9-07, S10-02, S2-05 |
 | [`S10-04`](kanban/cards/S10-04.md) | fs storage tier seeded as default (local-tier) and exercised by verify.sh gate 7 | S7-03, S7-08, S10-02 |
 
@@ -225,6 +224,7 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S10-01`](kanban/cards/S10-01.md) | testdata/fixtures.json + scripts/fetch-fixture.sh (pinned assets, recorded hashes) | S0-01 |
+| [`S10-02`](kanban/cards/S10-02.md) | Demo camera seeded through the public API + the go2rtc demo-only source | S3-02, S3-03, S9-04, S10-01 |
 
 ### Process — Repo mechanics
 

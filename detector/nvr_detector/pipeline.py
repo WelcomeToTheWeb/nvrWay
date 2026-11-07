@@ -63,6 +63,7 @@ class CameraPipeline:
     model: YoloOnnx
     client: ServerClient
     go2rtc_url: str = DEFAULT_GO2RTC_URL
+    go2rtc_auth: Optional[tuple[str, str]] = None
     http_timeout: float = 10.0
     frame_source: Optional[FrameSource] = None
     clock: Callable[[], float] = time.time
@@ -152,6 +153,7 @@ class CameraPipeline:
             url,
             name=self.camera.slug,
             timeout=self.http_timeout,
+            auth=self.go2rtc_auth,
             sleep=self.sleep,
             stop=stop,
         )
@@ -176,6 +178,7 @@ class Worker:
         *,
         max_cameras: int = 12,
         go2rtc_url: str = DEFAULT_GO2RTC_URL,
+        go2rtc_auth: Optional[tuple[str, str]] = None,
         http_timeout: float = 10.0,
         frame_source: Optional[FrameSource] = None,
         clock: Callable[[], float] = time.time,
@@ -185,6 +188,7 @@ class Worker:
         self.model = model
         self.max_cameras = int(max_cameras)
         self.go2rtc_url = go2rtc_url
+        self.go2rtc_auth = go2rtc_auth
         self.http_timeout = float(http_timeout)
         self.frame_source = frame_source
         self.clock = clock
@@ -231,6 +235,7 @@ class Worker:
                 model=self.model,
                 client=self.client,
                 go2rtc_url=self.go2rtc_url,
+                go2rtc_auth=self.go2rtc_auth,
                 http_timeout=self.http_timeout,
                 frame_source=self.frame_source,
                 clock=self.clock,

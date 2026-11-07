@@ -153,6 +153,10 @@ services:
       NVR_SERVER_URL: "http://server:8080"
       NVR_WORKER_TOKEN: "${WORKER_TOKEN:?WORKER_TOKEN is required in production: an empty one disables the internal API the detector lives on}"
       DET_PROVIDERS: "${DET_PROVIDERS:-CPUExecutionProvider}"
+      # The mjpeg tap is part of go2rtc's API, which enforces the basic auth
+      # the server pushes (S9-04); the detector needs the same credentials.
+      GO2RTC_USERNAME: "${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production: go2rtc's API is authenticated}"
+      GO2RTC_PASSWORD: "${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production: go2rtc's API is authenticated}"
       TZ: UTC
     networks:
       - nvr_net
