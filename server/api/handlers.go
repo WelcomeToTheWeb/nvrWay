@@ -176,6 +176,14 @@ func (h *Handlers) Register(r *gin.Engine) {
 		r.GET(config.WSPath, h.Hub.Handle)
 	}
 
+	// S9-07: the unauthenticated health pair, mounted here so the production
+	// router and the suite mount the same routes (P-12's lesson). `/health` is
+	// the container healthcheck's line — its handler takes no store, which is
+	// what "never touches the DB" means; `/api/healthz` answers detector
+	// freshness from a settings row.
+	r.GET("/health", h.Health)
+	r.GET("/api/healthz", h.Healthz)
+
 	public := r.Group("/api/auth", h.Limiter.Middleware())
 	public.GET("/status", h.AuthStatus)
 	public.POST("/login", h.Login)

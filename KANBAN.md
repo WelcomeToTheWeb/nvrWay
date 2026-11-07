@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 18 | 102 |
+| 0 | 0 | 1 | 18 | 103 |
 
-Total cards: **121**. In Progress limit: **2**.
+Total cards: **122**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S9-07`](kanban/cards/S9-07.md) | /health + /api/healthz with detector heartbeat (fresh/stale) | S1-13, S5-09 |
 | [`S9-08`](kanban/cards/S9-08.md) | scripts: dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh, fetch-fixture.sh | S9-04, S10-02, S10-03 |
 | [`S9-09`](kanban/cards/S9-09.md) | .github/workflows/build.yml: four jobs | P-01, S1-14, S5-11, S8-11 |
 | [`S9-10`](kanban/cards/S9-10.md) | Docs content: architecture, configuration, api, installation (decisions, not filler) | S0-02, S6-05, S7-09, S9-06 |
@@ -74,6 +73,7 @@ _empty_
 | [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
 | [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
+| [`P-13`](kanban/cards/P-13.md) | "test_the_environment_is_all_the_worker_needs_to_start is flaky: boot() kills on a log line emitted before the SIGTERM handler exists" | S5-09 |
 
 ## Done
 
@@ -220,6 +220,7 @@ _empty_
 | [`S9-03`](kanban/cards/S9-03.md) | "Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws" | S8-01 |
 | [`S9-04`](kanban/cards/S9-04.md) | "docker/docker-compose.yml (dev): six services, healthchecks, named volumes" | S9-01, S9-02, S9-03, S3-01 |
 | [`S9-05`](kanban/cards/S9-05.md) | "docker-compose.prod.yml: image-based, no builds, GO2RTC_PUBLIC_URL required" | S9-04 |
+| [`S9-07`](kanban/cards/S9-07.md) | "/health + /api/healthz with detector heartbeat (fresh/stale)" | S1-13, S5-09 |
 
 ### Process — Repo mechanics
 

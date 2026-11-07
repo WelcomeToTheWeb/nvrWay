@@ -21,6 +21,7 @@ from nvr_detector.client import (
     DETECTOR_CONFIG_PATH,
     DetectorConfig,
     FLUSH_SECONDS,
+    HEARTBEAT_SECONDS,
     MAX_BUFFERED_SIGNALS,
     MAX_RETRIES,
     MAX_SIGNALS_PER_POST,
@@ -80,6 +81,7 @@ def client_with(script, sleep=None, **kwargs) -> tuple[ServerClient, StubSession
 def test_the_plan_intervals_and_limits_are_the_constants_the_code_uses():
     assert CONFIG_POLL_SECONDS == 5.0
     assert FLUSH_SECONDS == 2.0
+    assert HEARTBEAT_SECONDS == 30.0, "S9-07: the server calls a detector fresh for three of these"
     assert MAX_SIGNALS_PER_POST == 40
     assert MAX_BUFFERED_SIGNALS == 40
     assert MAX_RETRIES == 3
@@ -383,6 +385,14 @@ def test_the_loop_polls_the_config_and_flushes_on_their_intervals():
     assert server.count(DETECTOR_CONFIG_PATH) >= 3, "a 5 s poll, compressed to 0.15 s, must have run several times"
     assert server.count(SIGNALS_PATH) >= 1
     assert client.buffered() == 0, "the loop drains what the pipelines add"
+
+
+def test_a_refused_beat_is_reported_and_not_retried():
+    """A heartbeat that fails is a log line, not a backlog: the next beat is the
+    retry, because the question healthz asks is about *now*."""
+    client, session = client_with([StubResult(403, {"error": "internal api disabled"})])
+    assert client.heartbeat(5.0) is False
+    assert len(session.calls) == 1, "no retry: a refused beat is replaced by the next one"
 
 
 def test_the_loop_hands_the_parsed_config_to_the_caller():

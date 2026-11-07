@@ -69,10 +69,12 @@ const MaxSignalSnapshotBytes = 250 * 1024
 // the name is decided once and read twice.
 const DetStreamSuffix = "_det"
 
-// registerDetectorRoutes mounts the worker's two routes on the internal group.
+// registerDetectorRoutes mounts the worker's routes on the internal group.
 func (h *Handlers) registerDetectorRoutes(g *gin.RouterGroup) {
 	g.GET("/detector/config", h.DetectorConfig)
 	g.POST("/signals", h.IngestSignals)
+	// S9-07: the beat that makes detector liveness answerable as data.
+	g.POST("/heartbeat", h.DetectorHeartbeat)
 }
 
 // -- GET /api/internal/v1/detector/config ---------------------------------

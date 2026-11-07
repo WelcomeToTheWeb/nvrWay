@@ -31,17 +31,11 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) (*gin.E
 	router := gin.New()
 	router.Use(gin.Recovery())
 
-	// The container healthcheck (`wget -q --spider /health`) asks for liveness:
-	// the process is up and answering. It deliberately does not touch the
-	// database, so a healthcheck cannot be the thing that restarts a server out
-	// from under a recording.
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":     "ok",
-			"version":    config.Version,
-			"git_commit": config.GitCommit,
-		})
-	})
+	// The container healthcheck's line (`/health`) and the readiness answer
+	// (`/readyz`) both exist from Step 1 and neither is part of the API's auth
+	// surface. `/health` is mounted by the handler set (`api/health.go`,
+	// S9-07): its handler takes no store, so a healthcheck can never be the
+	// thing that restarts a server out from under a recording.
 
 	// Readiness is the question a deploy script asks, and it has an answer
 	// here because the store is the only thing installed at this stage.

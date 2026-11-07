@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"nvr/server/config"
@@ -42,5 +43,41 @@ func TestProductionRouterMountsTheLiveFeed(t *testing.T) {
 	}
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("/ws without a token: status = %d, want 401 from the hub's token gate", rec.Code)
+	}
+}
+
+// The health pair, pinned the same way (S9-07, with P-12's lesson): the api
+// suite mounts routes on a fixture router, and a fixture mount is not proof
+// the shipped binary answers. verify.sh's first step hits both of these on a
+// real container, so the same two questions run here against `newRouter`.
+func TestProductionRouterMountsTheHealthPair(t *testing.T) {
+	st, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("store.New: %v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := st.DB.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	cfg := &config.Config{JWTSecret: "router-test-secret", WebURL: "http://localhost:3000"}
+	router, _ := newRouter(context.Background(), cfg, st)
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/health: status = %d, want 200", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/api/healthz: status = %d, want 200", rec.Code)
+	}
+	// A fresh installation has never heard from a worker: degraded/stale, and
+	// still a 200 — the server itself is fine.
+	if body := rec.Body.String(); !strings.Contains(body, `"status":"degraded"`) || !strings.Contains(body, `"status":"stale"`) {
+		t.Fatalf("fresh-install healthz = %s, want degraded + stale with a 200", body)
 	}
 }

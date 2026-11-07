@@ -34,6 +34,7 @@ from .client import (
     CONFIG_POLL_SECONDS,
     DEFAULT_SERVER_URL,
     FLUSH_SECONDS,
+    HEARTBEAT_SECONDS,
     CameraConfig,
     DetectorConfig,
     ServerClient,
@@ -262,10 +263,16 @@ class Worker:
         stop: threading.Event,
         poll: float = CONFIG_POLL_SECONDS,
         flush_every: float = FLUSH_SECONDS,
+        heartbeat: float = HEARTBEAT_SECONDS,
     ) -> None:
-        """Poll, reconcile, flush — until `stop`. Then close the events and drain."""
+        """Poll, reconcile, flush, beat — until `stop`. Then close the events and
+        drain. The heartbeat (S9-07) goes out on the first pass, so a freshly
+        started worker reads fresh immediately, and every `heartbeat` seconds
+        after; it is never buffered, because a beat describes *now*."""
         next_poll = 0.0
         next_flush = time.monotonic()
+        started = time.monotonic()
+        next_heartbeat = 0.0
         while not stop.is_set():
             now = time.monotonic()
             if now >= next_poll:
@@ -278,6 +285,9 @@ class Worker:
             if time.monotonic() >= next_flush:
                 self.client.flush()
                 next_flush = time.monotonic() + flush_every
+            if time.monotonic() >= next_heartbeat:
+                self.client.heartbeat(time.monotonic() - started)
+                next_heartbeat = time.monotonic() + heartbeat
             stop.wait(0.2)
         self.shutdown()
 

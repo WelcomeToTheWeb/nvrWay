@@ -32,6 +32,10 @@ log = logging.getLogger("nvr_detector.client")
 # The plan's timings and limits, as named constants.
 CONFIG_POLL_SECONDS = 5.0
 FLUSH_SECONDS = 2.0
+# S9-07: the beat that makes detector liveness answerable as data. The server
+# calls a detector fresh for 90 s — three of these — so one lost POST to a
+# restarting server must not flap the wall.
+HEARTBEAT_SECONDS = 30.0
 MAX_SIGNALS_PER_POST = 40
 MAX_BUFFERED_SIGNALS = 40
 MAX_RETRIES = 3
@@ -42,6 +46,7 @@ DEFAULT_TIMEOUT = 10.0
 DEFAULT_SERVER_URL = "http://server:8080"
 DETECTOR_CONFIG_PATH = "/api/internal/v1/detector/config"
 SIGNALS_PATH = "/api/internal/v1/signals"
+HEARTBEAT_PATH = "/api/internal/v1/heartbeat"
 
 
 class ZoneConfig(BaseModel):
@@ -269,6 +274,18 @@ class ServerClient:
         if callable(close):
             close()
 
+    # -- heartbeat ----------------------------------------------------------
+
+    def heartbeat(self, uptime_seconds: float) -> bool:
+        """Post the beat (S9-07). False means "the server did not take it"; the
+        caller does not buffer or retry it — the next beat is the retry, and a
+        heartbeat is a statement about *now*, so an old one is worthless."""
+        status, _ = self._request("POST", HEARTBEAT_PATH, {"uptime_seconds": round(uptime_seconds, 1)})
+        if status != 200:
+            log.warning("client: heartbeat: HTTP %s", status)
+            return False
+        return True
+
     def run(
         self,
         stop: threading.Event,
@@ -277,7 +294,10 @@ class ServerClient:
         flush_every: float = FLUSH_SECONDS,
     ) -> None:
         """Poll and flush until `stop` is set. Runs on the caller's thread; the
-        worker's main loop is the caller, and the camera threads are its children."""
+        worker's main loop is the caller, and the camera threads are its
+        children. (The shipped loop is `pipeline.Worker.run`; this one is the
+        client's own convenience loop, and the heartbeat lives in the shipped
+        one — S9-07 learned the difference the hard way.)"""
         next_poll = 0.0
         next_flush = time.monotonic()
         while not stop.is_set():

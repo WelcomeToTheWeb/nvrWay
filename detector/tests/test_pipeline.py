@@ -288,6 +288,33 @@ def test_the_worker_survives_a_server_that_never_answers(caplog):
     assert "no config from" in caplog.text
 
 
+def test_the_worker_beats_the_heartbeat_on_the_shipped_loop():
+    """S9-07: detector liveness is answered as data — the worker POSTs, the
+    server stamps its own clock. The beat belongs to `Worker.run`, the loop the
+    shipped binary runs; the client's own convenience loop is not it, and the
+    first version of this beat was wired there, where the live stack never saw
+    it. The beat goes out on the first pass — a freshly started worker reads
+    fresh immediately — and every `heartbeat` seconds after."""
+    session = StubSession([], default=StubResult(200, {"status": "recorded"}))
+    client = ServerClient("http://server:8080", "tok", session=session, sleep=lambda _s: None)
+    worker = Worker(
+        client,
+        FakeModel(),
+        frame_source=lambda _camera: iter([FRAME]),
+        clock=FakeClock(1000.0, 1.0),
+        sleep=lambda _s: None,
+    )
+    stop = threading.Event()
+    threading.Timer(0.45, stop.set).start()
+    worker.run(stop, poll=10.0, flush_every=10.0, heartbeat=0.1)
+
+    beats = [c for c in session.calls if c["url"].endswith("/api/internal/v1/heartbeat")]
+    assert len(beats) >= 3, "a 30 s beat, compressed to 0.1 s, must have run several times"
+    assert beats[0]["json"]["uptime_seconds"] >= 0, "the body carries uptime_seconds"
+    polls = [c for c in session.calls if c["url"].endswith("/api/internal/v1/detector/config")]
+    assert len(polls) == 1, "the beat must not disturb the poll interval"
+
+
 def test_the_event_ceiling_from_the_settings_reaches_the_pipelines():
     worker, client = worker_for(config_payload("porch", settings={"event_max_seconds": 45}))
     worker.apply_config(client.get_config())
