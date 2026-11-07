@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import axios, {
-  AxiosError,
-  type AxiosResponse,
-  type InternalAxiosRequestConfig,
-} from 'axios';
+import axios from 'axios';
 import client, { AUTH_EXEMPT_PATHS } from './client';
+import { axiosHarness, UNAUTHORIZED } from '../test/axiosHarness';
 import {
   ACCESS_TOKEN_KEY,
   REFRESH_TOKEN_KEY,
@@ -13,64 +10,13 @@ import {
 } from '../auth/session';
 
 /**
- * The harness is a real axios adapter, not a mock library.
- *
- * The thing under test is the interceptor chain — the request interceptor that
- * attaches the bearer and the response interceptor that renews the session and
- * retries. A mock of `client.request` would test a call nobody makes. A custom
- * adapter sits at the bottom of the real pipeline, so every assertion below is
- * about requests the interceptors actually produced, in the order axios
- * produced them.
+ * The harness is a real axios adapter, not a mock library — the shared one
+ * (`src/test/axiosHarness.ts`), which exists precisely for this file: the
+ * thing under test is the interceptor chain, and a mock of `client.request`
+ * would test a call nobody makes. A custom adapter sits at the bottom of the
+ * real pipeline, so every assertion below is about requests the interceptors
+ * actually produced, in the order axios produced them.
  */
-interface Scripted {
-  status: number;
-  data?: unknown;
-}
-
-interface Call {
-  url: string;
-  method: string;
-  bearer: string | undefined;
-  body: unknown;
-}
-
-function harness(script: (call: Call, attempt: number) => Scripted) {
-  const calls: Call[] = [];
-
-  const adapter = async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
-    const call: Call = {
-      url: config.url ?? '',
-      method: (config.method ?? 'get').toLowerCase(),
-      bearer: config.headers?.Authorization as string | undefined,
-      body: config.data ? JSON.parse(String(config.data)) : undefined,
-    };
-    calls.push(call);
-    const attempt = calls.filter((c) => c.url === call.url && c.method === call.method).length;
-    const res = script(call, attempt);
-
-    if (res.status >= 200 && res.status < 300) {
-      return {
-        status: res.status,
-        statusText: 'OK',
-        data: res.data ?? {},
-        headers: {},
-        config,
-      };
-    }
-    throw new AxiosError(
-      'request refused',
-      'ERR_BAD_REQUEST',
-      config,
-      {},
-      { status: res.status, statusText: '', data: res.data ?? {}, headers: {}, config } as AxiosResponse,
-    );
-  };
-
-  return { calls, adapter };
-}
-
-/** The server's real refusal for an anonymous or expired call (api/middleware.go). */
-const UNAUTHORIZED: Scripted = { status: 401, data: { error: 'access token is not valid' } };
 
 function seedSession() {
   localStorage.setItem(ACCESS_TOKEN_KEY, 'old-access');
@@ -95,7 +41,7 @@ beforeEach(() => {
 
 describe('the bearer is attached where the server demands it', () => {
   it('puts the stored access token on every request as a bearer', async () => {
-    const { calls, adapter } = harness(() => ({ status: 200, data: { cameras: [] } }));
+    const { calls, adapter } = axiosHarness(() => ({ status: 200, data: { cameras: [] } }));
     client.defaults.adapter = adapter;
     seedSession();
 
@@ -106,7 +52,7 @@ describe('the bearer is attached where the server demands it', () => {
   });
 
   it('sends no Authorization header when there is no session', async () => {
-    const { calls, adapter } = harness(() => ({ status: 200, data: { local_login: true } }));
+    const { calls, adapter } = axiosHarness(() => ({ status: 200, data: { local_login: true } }));
     client.defaults.adapter = adapter;
 
     await client.get('/auth/status');
@@ -117,7 +63,7 @@ describe('the bearer is attached where the server demands it', () => {
 
 describe('401 -> refresh once -> retry', () => {
   it('renews the session and replays the refused request with the new bearer', async () => {
-    const { calls, adapter } = harness((call, attempt) => {
+    const { calls, adapter } = axiosHarness((call, attempt) => {
       if (call.url === '/auth/refresh') {
         return {
           status: 200,
@@ -150,7 +96,7 @@ describe('401 -> refresh once -> retry', () => {
     // presents a closed token next time, which is reuse: every live session of
     // the account is dropped. Keeping only the access token is not a
     // simplification, it is a logout machine.
-    const { adapter } = harness((call, attempt) => {
+    const { adapter } = axiosHarness((call, attempt) => {
       if (call.url === '/auth/refresh') {
         return { status: 200, data: { access_token: 'new-access', refresh_token: 'new-refresh' } };
       }
@@ -172,7 +118,7 @@ describe('401 -> refresh once -> retry', () => {
     // drops EVERY live session of the account (401 "refresh token was already
     // used", live_sessions_dropped: N). One refresh is a correctness property
     // of this server's security model, not an optimisation.
-    const { calls, adapter } = harness((call, attempt) => {
+    const { calls, adapter } = axiosHarness((call, attempt) => {
       if (call.url === '/auth/refresh') {
         return { status: 200, data: { access_token: 'new-access', refresh_token: 'new-refresh' } };
       }
@@ -198,7 +144,7 @@ describe('401 -> refresh once -> retry', () => {
 describe('a refused refresh ends the session, it does not loop', () => {
   it('clears every session key and routes to /login', async () => {
     const replace = locationStub('/events');
-    const { calls, adapter } = harness((call) =>
+    const { calls, adapter } = axiosHarness((call) =>
       call.url === '/auth/refresh'
         ? { status: 401, data: { error: 'refresh token was already used', live_sessions_dropped: 3 } }
         : UNAUTHORIZED,
@@ -221,7 +167,7 @@ describe('a refused refresh ends the session, it does not loop', () => {
 
   it('shares one failed refresh across a concurrent burst, and logs out once', async () => {
     const replace = locationStub('/live');
-    const { calls, adapter } = harness((call) =>
+    const { calls, adapter } = axiosHarness((call) =>
       call.url === '/auth/refresh' ? { status: 401, data: { error: 'refresh token has expired' } } : UNAUTHORIZED,
     );
     client.defaults.adapter = adapter;
@@ -240,7 +186,7 @@ describe('a refused refresh ends the session, it does not loop', () => {
 
   it('clears and routes on a 401 with no refresh token to renew with', async () => {
     const replace = locationStub('/audit');
-    const { calls, adapter } = harness(() => UNAUTHORIZED);
+    const { calls, adapter } = axiosHarness(() => UNAUTHORIZED);
     client.defaults.adapter = adapter;
     seedSession();
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -254,7 +200,7 @@ describe('a refused refresh ends the session, it does not loop', () => {
 
   it('does not navigate when already on /login', async () => {
     const replace = locationStub('/login');
-    const { adapter } = harness(() => UNAUTHORIZED);
+    const { adapter } = axiosHarness(() => UNAUTHORIZED);
     client.defaults.adapter = adapter;
     seedSession();
 
@@ -269,7 +215,7 @@ describe('a refusal that is not about this session stays a refusal', () => {
     // RequireRole answers 403 {"error":"insufficient role"}. Refreshing there
     // would rotate a healthy session for nothing and show the operator a
     // logout they did not do.
-    const { calls, adapter } = harness(() => ({ status: 403, data: { error: 'insufficient role' } }));
+    const { calls, adapter } = axiosHarness(() => ({ status: 403, data: { error: 'insufficient role' } }));
     client.defaults.adapter = adapter;
     seedSession();
 
@@ -284,7 +230,7 @@ describe('a refusal that is not about this session stays a refusal', () => {
     // answer about the credentials just typed, not about a session this browser
     // has; the LoginPage has to receive it to say why the sign-in failed.
     const replace = locationStub('/login');
-    const { calls, adapter } = harness(() => ({ status: 401, data: { error: 'invalid credentials' } }));
+    const { calls, adapter } = axiosHarness(() => ({ status: 401, data: { error: 'invalid credentials' } }));
     client.defaults.adapter = adapter;
     seedSession();
 

@@ -1,44 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
-import axios, { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
 import client from '../api/client';
+import { axiosHarness, type Call, type Script } from '../test/axiosHarness';
 import { AuthProvider, useAuth } from './context';
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, ROLES_KEY, USER_KEY, type SessionUser } from './session';
 
 /**
- * Same harness as client.test.ts: a real axios adapter, so the context is
- * tested against requests the interceptor chain actually made.
+ * The shared axios harness (`src/test/axiosHarness.ts`): a real adapter at the
+ * bottom of the pipeline, so the context is tested against requests the
+ * interceptor chain actually made. This wrapper only exists because these
+ * tests script calls without caring about the bearer or the attempt count —
+ * it wires the adapter and hands back the call log.
  */
-interface Call {
-  url: string;
-  method: string;
-  body: unknown;
-}
-
-function harness(script: (call: Call) => { status: number; data?: unknown }) {
-  const calls: Call[] = [];
-  const adapter = async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
-    const call: Call = {
-      url: config.url ?? '',
-      method: (config.method ?? 'get').toLowerCase(),
-      body: config.data ? JSON.parse(String(config.data)) : undefined,
-    };
-    calls.push(call);
-    const res = script(call);
-    if (res.status >= 200 && res.status < 300) {
-      return { status: res.status, statusText: 'OK', data: res.data ?? {}, headers: {}, config };
-    }
-    throw new AxiosError('refused', 'ERR_BAD_REQUEST', config, {}, {
-      status: res.status,
-      statusText: '',
-      data: res.data ?? {},
-      headers: {},
-      config,
-    } as AxiosResponse);
-  };
-  client.defaults.adapter = adapter;
-  return calls;
+function harness(script: Script) {
+  const h = axiosHarness(script);
+  client.defaults.adapter = h.adapter;
+  return h.calls;
 }
 
 const OPERATOR: SessionUser = {
@@ -132,7 +111,11 @@ describe('signing out', () => {
       await result.current.logout();
     });
 
-    expect(calls).toEqual([{ url: '/auth/logout', method: 'post', body: { refresh_token: 'r-1' } }]);
+    expect(calls).toEqual([
+      // The shared harness also records the bearer: logout is a session call,
+      // so the stored access token must ride on it.
+      { url: '/auth/logout', method: 'post', bearer: 'Bearer a-1', body: { refresh_token: 'r-1' } },
+    ]);
     for (const key of [ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, ROLES_KEY]) {
       expect(localStorage.getItem(key)).toBeNull();
     }
@@ -145,8 +128,8 @@ describe('signing out', () => {
     localStorage.setItem(ACCESS_TOKEN_KEY, 'a-1');
     localStorage.setItem(REFRESH_TOKEN_KEY, 'r-1');
     const calls: Call[] = [];
-    client.defaults.adapter = async (config: InternalAxiosRequestConfig) => {
-      calls.push({ url: config.url ?? '', method: config.method ?? 'get', body: undefined });
+    client.defaults.adapter = async (config) => {
+      calls.push({ url: config.url ?? '', method: config.method ?? 'get', bearer: undefined, body: undefined });
       throw new axios.AxiosError('network down', 'ERR_NETWORK', config, {});
     };
 

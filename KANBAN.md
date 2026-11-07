@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 1 | 123 |
+| 0 | 0 | 1 | 1 | 124 |
 
-Total cards: **125**. In Progress limit: **2**.
+Total cards: **126**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -228,6 +228,7 @@ _empty_
 | [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
 | [`P-15`](kanban/cards/P-15.md) | "The rendered api.origin:* never reaches the sidecar's WS check — a fresh sidecar 403s the console's live view" | S3-02, S3-05, S8-05 |
 | [`P-16`](kanban/cards/P-16.md) | "go2rtc's POST /api/config only writes the file — the running sidecar never applies the server's rendered streams" | S3-01, S3-05, P-15 |
+| [`P-17`](kanban/cards/P-17.md) | "S8-02's suites carried their own copies of the axios harness — move them onto the shared one" | S8-02, S8-11 |
 
 ## Board health
 
