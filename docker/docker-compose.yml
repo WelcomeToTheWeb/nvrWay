@@ -41,19 +41,18 @@ services:
   # go2rtc ships FFmpeg, so the recorder's `ffmpeg:` sources resolve inside it.
   # The server re-renders this service's whole config from the camera rows
   # (server/go2rtc/config.go -> POST /api/config), so the config file is never
-  # hand-edited — S3-02, S3-05.
+  # hand-edited — S3-02, S3-05. That includes the API credentials: the renderer
+  # writes GO2RTC_USERNAME / GO2RTC_PASSWORD into `api: { username, password }`,
+  # and go2rtc enforces them for every non-localhost caller (its `local_auth`
+  # stays off, so this service's own healthcheck needs no credentials). No
+  # GO2RTC_* env here on purpose: the default listens are exactly the ports
+  # below, and credentials the sidecar learned from env but the renderer did
+  # not would be silently erased by the first config push.
   go2rtc:
     image: ghcr.io/alexxit/go2rtc:master
     container_name: nvr-go2rtc
     restart: unless-stopped
     environment:
-      # API basic auth, from the same pair the server reads (GO2RTC_URL is the
-      # server's address for it). S9-04 wires the env-file form go2rtc wants.
-      GO2RTC_API: ":1984"
-      GO2RTC_RTSP: ":8554"
-      GO2RTC_WEBRTC: ":8555"
-      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
-      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
       TZ: UTC
     ports:
       - "1984:1984"
@@ -65,10 +64,18 @@ services:
       - go2rtc_config:/config
       # Demo-only (S10-02): the pinned fixture the demo camera's `exec:` source
       # reads, so a camera-free stack can be recorded and detected. Dev file,
-      # never in prod.
-      - ./testdata:/fixtures:ro
+      # never in prod. Relative to this file, hence ../.
+      - ../testdata:/fixtures:ro
     networks:
       - nvr_net
+    healthcheck:
+      # localhost bypasses the API auth (go2rtc's local_auth is off), so the
+      # probe needs no credentials even after the server has pushed them.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:1984/api/streams || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     logging: *nvr_logging
 
   server:
@@ -85,7 +92,7 @@ services:
       postgres:
         condition: service_healthy
       go2rtc:
-        condition: service_started
+        condition: service_healthy
     environment:
       SERVER_PORT: ":8080"
       DATABASE_URL: "postgresql://nvr:nvr@postgres:5432/nvr?sslmode=disable"
@@ -140,7 +147,11 @@ services:
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "sh -c 'pgrep -f nvr_detector' || exit 1"]
+      # The plan's `pgrep -f nvr_detector` cannot run here: python:3.12-slim
+      # ships no procps, and a healthcheck whose binary is missing is an
+      # always-unhealthy service. PID 1 of this container IS the worker
+      # (exec-form CMD), so its cmdline is the process check — no new package.
+      test: ["CMD-SHELL", "grep -q nvr_detector /proc/1/cmdline || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -164,7 +175,9 @@ services:
     networks:
       - nvr_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      # 127.0.0.1, not localhost: busybox wget prefers ::1 and nginx's
+      # `listen 8080` is IPv4-only — a localhost probe is connection refused.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

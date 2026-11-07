@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 20 | 100 |
+| 0 | 0 | 1 | 19 | 101 |
 
 Total cards: **121**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S9-04`](kanban/cards/S9-04.md) | docker/docker-compose.yml (dev): six services, healthchecks, named volumes | S9-01, S9-02, S9-03, S3-01 |
 | [`S9-05`](kanban/cards/S9-05.md) | docker-compose.prod.yml: image-based, no builds, GO2RTC_PUBLIC_URL required | S9-04 |
 | [`S9-07`](kanban/cards/S9-07.md) | /health + /api/healthz with detector heartbeat (fresh/stale) | S1-13, S5-09 |
 | [`S9-08`](kanban/cards/S9-08.md) | scripts: dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh, fetch-fixture.sh | S9-04, S10-02, S10-03 |
@@ -220,6 +219,7 @@ _empty_
 | [`S9-01`](kanban/cards/S9-01.md) | "Dockerfile.server: alpine builder + runtime with ffmpeg, non-root, healthcheck" | S1-02, S1-13 |
 | [`S9-02`](kanban/cards/S9-02.md) | "Dockerfile.detector: export stage + runtime stage" | S5-01, S5-12 |
 | [`S9-03`](kanban/cards/S9-03.md) | "Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws" | S8-01 |
+| [`S9-04`](kanban/cards/S9-04.md) | "docker/docker-compose.yml (dev): six services, healthchecks, named volumes" | S9-01, S9-02, S9-03, S3-01 |
 
 ### Process — Repo mechanics
 
