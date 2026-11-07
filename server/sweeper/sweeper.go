@@ -712,14 +712,24 @@ func (s *Sweeper) localWindows() (map[string]time.Duration, time.Duration) {
 	return windows, shortest
 }
 
-// protectionWindow is how long un-uploaded footage is kept past its own window:
-// `max(3 * local_retention_days, 7 days)`.
-func (s *Sweeper) protectionWindow(local time.Duration) time.Duration {
-	protected := local * unuploadedMultiplier
-	if floor := days(unuploadedFloorDays); protected < floor {
-		protected = floor
+// UnuploadedProtectionDays is the un-uploaded protection window in whole days:
+// `max(3 * localDays, 7)`. It is exported because the Settings page reports the
+// window the sweep will actually honour, and a second copy of the formula there
+// would make two authors of a promise this package keeps.
+func UnuploadedProtectionDays(localDays int) int {
+	protected := localDays * unuploadedMultiplier
+	if protected < unuploadedFloorDays {
+		return unuploadedFloorDays
 	}
 	return protected
+}
+
+// protectionWindow is how long un-uploaded footage is kept past its own window:
+// `max(3 * local_retention_days, 7 days)`. Every caller passes a window built
+// by `days`, so the whole-day arithmetic of `UnuploadedProtectionDays` is
+// exact, and the formula lives in exactly one place.
+func (s *Sweeper) protectionWindow(local time.Duration) time.Duration {
+	return days(UnuploadedProtectionDays(int(local / (24 * time.Hour))))
 }
 
 func days(n int) time.Duration {

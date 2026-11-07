@@ -219,6 +219,11 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// the attempt history that answers why one is not arriving.
 	h.registerWebhookRoutes(admin)
 
+	// The retention surface (S8-08): the windows the sweeper will honour, read
+	// from the config this process loaded. Read-only on purpose — the env is
+	// the policy's only author.
+	h.registerRetentionRoutes(admin)
+
 	// The live settings (S8-04): the media host the player reaches *from the
 	// browser*, which is not the address the server uses. Mounted on the plain
 	// read gate rather than `admin`, because the role that needs it is the one

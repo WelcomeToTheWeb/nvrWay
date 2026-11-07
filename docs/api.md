@@ -419,7 +419,14 @@ Rows are pruned after 30 days by the retention sweep (S7-09, sweep 5).
 
 `GET /api/v1/settings/live` (the console never hard-codes the media host,
 S8-04), `PUT /api/settings/oidc` (discovery result in the response),
-retention and recording knobs (S8-08, S2-07).
+`GET /api/settings/retention` (admin, S8-08): the windows the sweeper will
+honour, read from the config this process loaded — `local_days`, `remote_days`
+(with `remote_forever: true` spelled out beside a zero), `event_days`,
+`unuploaded_protection_days` (the sweeper's own `max(3 × local, 7)`), the three
+housekeeping windows, and `author: "environment"`. **Read-only on purpose:**
+the env is the policy's only author, and a console write path would fork the
+policy into an env file and a settings row while the sweep kept reading the
+env. Recording knobs live on the camera row (`PUT /api/v1/cameras/:id`).
 
 ## Audit
 
