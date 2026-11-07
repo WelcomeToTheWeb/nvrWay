@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 7 | 114 |
+| 0 | 0 | 1 | 6 | 116 |
 
-Total cards: **122**. In Progress limit: **2**.
+Total cards: **123**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -32,12 +32,6 @@ _empty_
 ## Backlog
 
 
-### Step 8 — Web console
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S8-12`](kanban/cards/S8-12.md) | Playwright specs: auth, live, cameras, events, storage | S8-11, S10-02, S9-08 |
-
 ### Step 9 — Containers, compose, scripts, CI
 
 | Card | Title | Depends |
@@ -48,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S11-04`](kanban/cards/S11-04.md) | E2E suite green: scripts/e2e-stack.sh test (Playwright chromium) | S8-12, S10-02 |
 | [`S11-05`](kanban/cards/S11-05.md) | Coverage ratchet recorded (coverage.sh --record) | S11-01, S11-02, S11-03 |
 
 ### Process — Repo mechanics
@@ -58,6 +51,7 @@ _empty_
 | [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
 | [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
+| [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
 
 ## Done
 
@@ -193,6 +187,7 @@ _empty_
 | [`S8-09`](kanban/cards/S8-09.md) | AuditPage + routes/nav role gating | S8-02, S2-09 |
 | [`S8-10`](kanban/cards/S8-10.md) | "realtime.ts: zustand store over /ws?token= with backoff + stale banner" | S8-02, S2-10 |
 | [`S8-11`](kanban/cards/S8-11.md) | Console suite: vitest + @testing-library (behavior, no snapshots) | S8-02, S8-05, S8-06, S8-07, S8-10 |
+| [`S8-12`](kanban/cards/S8-12.md) | "Playwright specs: auth, live, cameras, events, storage" | S8-11, S10-02, S9-08 |
 | [`S8-13`](kanban/cards/S8-13.md) | "CamerasPage: delete a camera (admin) with a confirmation that names the footage" | S8-07, S8-09, S3-03 |
 
 ### Step 9 — Containers, compose, scripts, CI
@@ -224,6 +219,7 @@ _empty_
 | [`S11-01`](kanban/cards/S11-01.md) | "Go suite green: go2rtc, media, storage, sweeper, sso, api, webhooks, ws" | S2-11, S3-06, S4-07, S6-05, S7-10, S7-09, S6-06 |
 | [`S11-02`](kanban/cards/S11-02.md) | "Detector suite green: pytest -m 'not slow' + the slow smoke" | S5-11 |
 | [`S11-03`](kanban/cards/S11-03.md) | "Console suite green: typecheck + vitest" | S8-11 |
+| [`S11-04`](kanban/cards/S11-04.md) | "E2E suite green: scripts/e2e-stack.sh test (Playwright chromium)" | S8-12, S10-02 |
 
 ### Process — Repo mechanics
 

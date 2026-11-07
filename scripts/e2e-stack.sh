@@ -106,13 +106,18 @@ restart)
     admin_user=admin
     admin_pass=$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')
     worker_token=$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')
-    go2rtc_pass=$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')
 
     # --- go2rtc: its own container, its own config volume -------------------
     # The server pushes the rendered config over the API and go2rtc persists
     # it into /config; the restart below is what instantiates the streams
     # (streams are created at boot, S3-07 — the e2e stack has no compose
     # project for the server to restart, so the script plays that part).
+    #
+    # The sidecar runs with NO api auth here, deliberately: the rendered
+    # config protects /api/ws with basic auth, and a browser WebSocket cannot
+    # present one — live view is unreachable behind those credentials (P-14).
+    # The sidecar binds 127.0.0.1 only and the run is throwaway, so the
+    # trusted-LAN assumption the template defaults make holds outright.
     log "starting go2rtc ($container) on 127.0.0.1:1985/18555"
     docker run -d --rm --name "$container" \
         -v "$volume:/config" \
@@ -144,10 +149,10 @@ restart)
         WEB_URL="$console" \
         WS_ORIGINS="$console" \
         GO2RTC_URL="http://127.0.0.1:1985" \
-        GO2RTC_USERNAME="nvr-e2e" \
-        GO2RTC_PASSWORD="$go2rtc_pass" \
+        GO2RTC_USERNAME="" \
+        GO2RTC_PASSWORD="" \
         GO2RTC_RTSP_URL="rtsp://127.0.0.1:18554" \
-        GO2RTC_PUBLIC_URL="http://127.0.0.1:18555" \
+        GO2RTC_PUBLIC_URL="http://127.0.0.1:1985" \
         BOOTSTRAP_ADMIN_USER="$admin_user" \
         BOOTSTRAP_ADMIN_PASSWORD="$admin_pass" \
         WORKER_TOKEN="$worker_token" \
