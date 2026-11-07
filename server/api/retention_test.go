@@ -22,7 +22,7 @@ import (
 	"nvr/server/store"
 )
 
-func retentionToken(t *testing.T, st *store.Store, h *Handlers, username, role string) string {
+func tokenForRole(t *testing.T, st *store.Store, h *Handlers, username, role string) string {
 	t.Helper()
 	u := newUser(t, st, username, role)
 	return accessToken(t, st, h.JWT, u)
@@ -113,7 +113,7 @@ func TestRetentionIsAdminOnly(t *testing.T) {
 	r := routerFor(t, h)
 
 	for _, role := range []string{models.RoleViewer, models.RoleOperator} {
-		token := retentionToken(t, st, h, "retention-"+role, role)
+		token := tokenForRole(t, st, h, "retention-"+role, role)
 		status, _, _ := do(t, r, request{
 			method: http.MethodGet, path: "/api/settings/retention", bearer: token,
 		})

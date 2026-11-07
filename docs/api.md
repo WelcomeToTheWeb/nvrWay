@@ -430,8 +430,21 @@ env. Recording knobs live on the camera row (`PUT /api/v1/cameras/:id`).
 
 ## Audit
 
-`GET /api/audit` (admin) with actor, action, target and the denial rows
-(S2-09, S8-09).
+`GET /api/audit` (admin) answers **who did what, to what, and what the server
+answered** — newest first. Query: `actor` (username), `action`, `target_id`,
+`outcome` (one of `ok` / `refused` / `not_found` / `error` — anything else is
+a 400 naming the four), `from` / `to` (RFC3339), `limit` (default 50, max
+200), `offset`. Response `{audits, count, limit, offset, truncated}`; each row
+is `{id, actor_user_id, actor_username, actor_roles, actor_provider, action,
+target_type, target_id, outcome, details, source_ip, created_at}`.
+
+The actor columns are text, not ids, and can be empty — a failed login has no
+authenticated account, and the row still answers who knocked. **Refusals are
+rows**: `outcome` is a stored column derived from the status code
+(`AuditOutcomeFor`), so `?outcome=refused` finds the deletes a viewer attempted
+and the server denied. The read itself is deliberately not audited: no read
+verb exists in `models/audit.go`, and a ledger read that writes rows moves the
+page count under the operator reading it.
 
 ## Health
 

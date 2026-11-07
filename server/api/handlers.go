@@ -224,6 +224,10 @@ func (h *Handlers) Register(r *gin.Engine) {
 	// the policy's only author.
 	h.registerRetentionRoutes(admin)
 
+	// The ledger read (S8-09): the answer to "who did what". The rows have been
+	// written since S2-08; this is the surface the AuditPage draws.
+	h.registerAuditRoutes(admin)
+
 	// The live settings (S8-04): the media host the player reaches *from the
 	// browser*, which is not the address the server uses. Mounted on the plain
 	// read gate rather than `admin`, because the role that needs it is the one
