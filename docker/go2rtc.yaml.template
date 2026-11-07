@@ -1,6 +1,14 @@
-# go2rtc base config — skeleton (card S0-03)
+# go2rtc base config — the seed (S0-03; its role changed with P-15)
 #
-# This is the *base* the server renders from. `server/go2rtc/config.go`
+# This file is bind-mounted into the sidecar and copied to
+# `/config/go2rtc.yaml` at container start **when that file is missing or
+# empty** (docker-compose.yml, scripts/e2e-stack.sh). It is not decoration:
+# go2rtc installs its WebSocket origin check once, at process start, from
+# this file — a sidecar that boots with no config runs a same-origin check
+# and 403s the console's live view, because the console lives on a different
+# port. `api.origin: "*"` must therefore be on disk before go2rtc starts.
+#
+# It is authoritative for nothing after boot: `server/go2rtc/config.go`
 # (card S3-02) produces the full go2rtc.yaml as a pure function of the camera
 # rows and pushes it with `POST /api/config` (card S3-01); the server also
 # applies it at boot after a `Streams` probe (S3-05). Nothing here is

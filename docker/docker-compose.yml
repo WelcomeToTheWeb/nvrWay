@@ -62,10 +62,47 @@ services:
       - "8555:8555/udp"
     volumes:
       - go2rtc_config:/config
+      # P-15: go2rtc reads api.origin only at process start, and the server's
+      # rendered push arrives after that — so a sidecar on a fresh volume
+      # would run the same-origin WS check and 403 the console (a different
+      # port). The base template is seeded into the volume before go2rtc
+      # starts, but only when the config is missing or empty: a persisted
+      # config (with its streams) survives restarts, and the server's boot
+      # push (S3-05) replaces the seed within seconds either way.
+      # P-16: go2rtc's `POST /api/config` only writes the file — streams,
+      # listens and the WS origin check are read once at boot and never
+      # reloaded. The command below is a supervisor: it seeds the config,
+      # runs go2rtc, and exits when the file's checksum changes, so
+      # `restart: unless-stopped` boots the sidecar with what the server
+      # just wrote. A camera save therefore costs the sidecar a restart
+      # (live tiles blink, recorders respawn on their own backoff) instead
+      # of silently never taking effect.
+      - ./go2rtc.yaml.template:/go2rtc.seed.yaml:ro
       # Demo-only (S10-02): the pinned fixture the demo camera's `exec:` source
       # reads, so a camera-free stack can be recorded and detected. Dev file,
       # never in prod. Relative to this file, hence ../.
       - ../testdata:/fixtures:ro
+    # $$ escapes compose interpolation: these $vars belong to the container's
+    # shell, not to this file's env.
+    command:
+      - sh
+      - -c
+      - |
+        [ -s /config/go2rtc.yaml ] || cp /go2rtc.seed.yaml /config/go2rtc.yaml
+        go2rtc -config /config/go2rtc.yaml &
+        pid=$$!
+        trap 'kill $$pid 2>/dev/null; exit 0' INT TERM
+        last=$$(md5sum /config/go2rtc.yaml 2>/dev/null)
+        while kill -0 $$pid 2>/dev/null; do
+          sleep 2
+          now=$$(md5sum /config/go2rtc.yaml 2>/dev/null)
+          if [ "$$now" != "$$last" ]; then
+            echo "go2rtc.yaml changed on disk (the server re-rendered it, S3-05); exiting so the fresh config is booted"
+            kill $$pid 2>/dev/null
+            exit 0
+          fi
+        done
+        wait $$pid
     networks:
       - nvr_net
     healthcheck:

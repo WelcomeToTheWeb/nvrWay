@@ -57,8 +57,13 @@ test('a 4-vertex zone survives a reload', async ({ page }) => {
 
   // The zone editor is a <section> of its own; the camera row's save button
   // reads "saved" whenever the row is clean, so an unscoped 'saved' locator
-  // is two elements.
-  const zoneSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Detection zones' }) });
+  // is two elements. Scoping by `filter({ has: heading })` is NOT enough —
+  // the camera editor's own <section> contains the heading too, so the
+  // filter matches the ancestor as well and the strict-mode violation comes
+  // back whenever the row happens to be clean at this instant (cold stacks
+  // hit it; warm ones raced past it). The nearest ancestor section of the
+  // heading is the zone editor itself, always.
+  const zoneSection = page.getByRole('heading', { name: 'Detection zones' }).locator('xpath=ancestor::section[1]');
   await zoneSection.getByRole('button', { name: 'save zones' }).click();
   await expect(zoneSection.getByRole('button', { name: 'saved' })).toBeVisible();
 

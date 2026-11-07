@@ -118,14 +118,45 @@ restart)
     # present one — live view is unreachable behind those credentials (P-14).
     # The sidecar binds 127.0.0.1 only and the run is throwaway, so the
     # trusted-LAN assumption the template defaults make holds outright.
+    # WHY NO API AUTH HERE (P-14): GO2RTC_USERNAME/PASSWORD are deliberately
+    # empty below, and that means this suite never exercises the credentialed
+    # sidecar — with them set, go2rtc answers 401 to the browser's live-view
+    # WebSocket (a browser cannot present basic auth on a WS) and live view
+    # cannot work at all; the decision and the trade are documented in
+    # docs/configuration.md. A green live spec here is coverage of the
+    # no-auth path only, and must not be read as coverage of the other.
     log "starting go2rtc ($container) on 127.0.0.1:1985/18555"
-    docker run -d --rm --name "$container" \
+    # Same seed + supervisor as docker/docker-compose.yml (P-15, P-16): the
+    # template puts api.origin:"*" on disk before go2rtc starts, and the
+    # supervisor exits when the server re-renders the file so the container
+    # boots the new config (go2rtc never reloads one in place). The explicit
+    # `docker restart` below stays: it is the deterministic instant of the
+    # streams' first boot, not a wait-on-poll.
+    sidecar_cmd='[ -s /config/go2rtc.yaml ] || cp /go2rtc.seed.yaml /config/go2rtc.yaml
+go2rtc -config /config/go2rtc.yaml &
+pid=$!
+trap '"'"'kill $pid 2>/dev/null; exit 0'"'"' INT TERM
+last=$(md5sum /config/go2rtc.yaml 2>/dev/null)
+while kill -0 $pid 2>/dev/null; do
+  sleep 2
+  now=$(md5sum /config/go2rtc.yaml 2>/dev/null)
+  if [ "$now" != "$last" ]; then
+    echo "go2rtc.yaml changed on disk; exiting so the fresh config is booted"
+    kill $pid 2>/dev/null
+    exit 0
+  fi
+done
+wait $pid'
+    docker run -d --restart unless-stopped --name "$container" \
         -v "$volume:/config" \
+        -v "$repo_root/docker/go2rtc.yaml.template:/go2rtc.seed.yaml:ro" \
         -p 127.0.0.1:1985:1984 \
         -p 127.0.0.1:18554:8554 \
         -p 127.0.0.1:18555:8555 \
         -p 127.0.0.1:18555:8555/udp \
-        ghcr.io/alexxit/go2rtc:master >/dev/null || die "the go2rtc container did not start"
+        ghcr.io/alexxit/go2rtc:master \
+        sh -c "$sidecar_cmd" \
+        >/dev/null || die "the go2rtc container did not start"
     for _ in $(seq 1 20); do
         curl -fsS "http://127.0.0.1:1985/api/streams" >/dev/null 2>&1 && break
         sleep 1
