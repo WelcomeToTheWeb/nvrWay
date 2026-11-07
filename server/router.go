@@ -12,6 +12,7 @@ import (
 	"nvr/server/models"
 	"nvr/server/sidecar"
 	"nvr/server/store"
+	"nvr/server/ws"
 )
 
 // newRouter builds the HTTP surface.
@@ -88,9 +89,19 @@ func newRouter(ctx context.Context, cfg *config.Config, st *store.Store) (*gin.E
 	// arrive inside `api.Handlers`, so the middleware, the rate limiter and the
 	// ledger are the same for all of them.
 	//
-	// The hub is nil until the live feed is wired to the recorder (S6-04): the
-	// `/ws` route is mounted by the handler set when a hub is handed to it.
+	// The hub is built here, once, before `Register` — the `/ws` route exists only
+	// when a hub is there at mount time, and the recorder (main.go) takes the
+	// same instance from `handlers.Hub`: one fan-out per process, so a segment
+	// tick and an event row travel the same socket the console reads. The origin
+	// allowlist is WS_ORIGINS, falling back to WEB_URL: the console's own origin
+	// is always dialable, and an installation that puts the console elsewhere
+	// says so explicitly.
 	handlers := api.NewHandlers(ctx, st, nil, nil, cfg)
+	origins := cfg.WSOrigins
+	if origins == "" {
+		origins = cfg.WebURL
+	}
+	handlers.Hub = ws.NewHub(handlers.JWT, []string{origins})
 
 	// Step 3: the media sidecar client. The camera routes need it for the probe
 	// and the snapshot, and every camera write pushes the rendered config through

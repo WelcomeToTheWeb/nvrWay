@@ -115,13 +115,12 @@ func main() {
 
 	// Step 4 (S4-01): the recorder, inserted where the plan puts it in the boot
 	// order — after the media sidecar it reads from, before the API that reports
-	// what it wrote. The hub is nil for the same reason the router's is: the live
-	// feed is wired to real media by S6-04, and a recorder with no hub records and
-	// says nothing, which is a state and not a fault.
+	// what it wrote. It takes the router's hub (S9-03/P-12): one fan-out per
+	// process, so recorder.status ticks reach the same socket as the event rows.
 	//
 	// Close is deferred so the ffmpeg children this process owns are terminated on
 	// the way out. A child left writing is a recording a restart cannot resume.
-	recorder := media.NewRecorder(cfg, st, nil)
+	recorder := media.NewRecorder(cfg, st, handlers.Hub)
 	handlers.Recorder = recorder
 	go recorder.Run(ctx)
 	defer recorder.Close()

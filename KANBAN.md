@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 21 | 98 |
+| 0 | 0 | 1 | 20 | 100 |
 
-Total cards: **120**. In Progress limit: **2**.
+Total cards: **121**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S9-03`](kanban/cards/S9-03.md) | Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws | S8-01 |
 | [`S9-04`](kanban/cards/S9-04.md) | docker/docker-compose.yml (dev): six services, healthchecks, named volumes | S9-01, S9-02, S9-03, S3-01 |
 | [`S9-05`](kanban/cards/S9-05.md) | docker-compose.prod.yml: image-based, no builds, GO2RTC_PUBLIC_URL required | S9-04 |
 | [`S9-07`](kanban/cards/S9-07.md) | /health + /api/healthz with detector heartbeat (fresh/stale) | S1-13, S5-09 |
@@ -220,6 +219,7 @@ _empty_
 | --- | --- | --- |
 | [`S9-01`](kanban/cards/S9-01.md) | "Dockerfile.server: alpine builder + runtime with ffmpeg, non-root, healthcheck" | S1-02, S1-13 |
 | [`S9-02`](kanban/cards/S9-02.md) | "Dockerfile.detector: export stage + runtime stage" | S5-01, S5-12 |
+| [`S9-03`](kanban/cards/S9-03.md) | "Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws" | S8-01 |
 
 ### Process — Repo mechanics
 
@@ -233,6 +233,7 @@ _empty_
 | [`P-06`](kanban/cards/P-06.md) | Mirror the cards into the pi-kanban board's task store (kanban/pi_board.py) | P-00, P-04 |
 | [`P-07`](kanban/cards/P-07.md) | Ignore the Hindsight artifacts the memory tool drops in the repo root | P-00, P-05 |
 | [`P-09`](kanban/cards/P-09.md) | Mirror the cards into the DeepSeek Harness workspace board (kanban/harness_board.py) | P-00, P-06 |
+| [`P-12`](kanban/cards/P-12.md) | "Production server never mounted /ws: the hub was never constructed" | S6-08 |
 
 ## Board health
 
