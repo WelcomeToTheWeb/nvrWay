@@ -29,6 +29,7 @@ data/
 
 # scripts/coverage.sh working files
 .coverage-*.out
+web/coverage/
 
 # Files the coding-agent memory tooling writes into the repo root: the memory
 # bank's config dump, and the HTTP API spec it fetched into the working tree.

@@ -30,6 +30,12 @@
 # camera itself if the stack is up but the camera is not).
 set -uo pipefail
 
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    echo "Usage: scripts/verify.sh"
+    echo "Runs the nine acceptance gates against the dev stack (prerequisite: scripts/dev.sh --demo)."
+    exit 0
+fi
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 compose_file="$repo_root/docker/docker-compose.yml"
 env_file="$repo_root/docker/.env"

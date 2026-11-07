@@ -41,10 +41,18 @@ console="http://localhost:3000"
 
 compose() { docker compose -f "$compose_file" --env-file "$env_file" "$@"; }
 
-[ -f "$env_file" ] || {
-    echo "dev.sh: $env_file is missing — copy docker/.env.example and fill it in" >&2
-    exit 1
-}
+if [ ! -f "$env_file" ]; then
+    # A fresh clone has no docker/.env (it is gitignored). The example carries
+    # dev credentials on purpose, so copying it is the no-manual-setup path;
+    # production never runs this script (docs/installation.md).
+    if [ -f "$repo_root/docker/.env.example" ]; then
+        cp "$repo_root/docker/.env.example" "$env_file"
+        echo "dev.sh: created $env_file from docker/.env.example — dev credentials, edit it for anything real"
+    else
+        echo "dev.sh: $env_file is missing and docker/.env.example is not there to seed it" >&2
+        exit 1
+    fi
+fi
 
 env_get() { grep -E "^$1=" "$env_file" | tail -1 | cut -d= -f2- || true; }
 
