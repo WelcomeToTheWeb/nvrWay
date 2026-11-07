@@ -1,0 +1,18 @@
+# Agent Note: event-det-frame-persisted-at-intake
+
+Status: implemented
+
+## Problem
+
+The worker sends detection boxes as `[x1,y1,x2,y2]` pixels of the detection tap and never names the frame; the server stored them verbatim. The console could only borrow the frame size from the camera row's `detection_width`/`detection_height`, which default to 0 — so on a default installation the event drawer could not place a single box (S8-06 shipped the honest refusal: count stated, position withheld). Any third-party reader of `GET /api/v1/events/:id` had the same problem with even less recourse.
+
+## Decision
+
+The frame is resolved once at signal intake and persisted on the event row. `go2rtc.DetectionFrameSize(camera, cfg)` is the exported heart of `detectionSource` (camera row's detection_width/height, `GO2RTC_MJPEG_WIDTH`/`_HEIGHT` underneath) and is called by both the renderer and the signals intake, so the stored number is by construction the size go2rtc was asked to transcode to. `events.det_width`/`det_height` (integer, not null, default 0) arrive as migration v3 `events_det_frame`, guarded per column by `Migrator().HasColumn` because a fresh database already has them from v1's AutoMigrate. `store.EventInput` carries them; `applySignalTo` fills a frame the row does not yet name and never overwrites one it does — the frame stored is the one the first naming signal recorded, and a mid-event tap-size edit gets one frame wrong, stated in docs/api.md. `eventView` answers `det_width`/`det_height`; 0 means "not named" and every consumer that finds 0 places nothing. `EventDetail.tsx` divides boxes by the event's frame and no longer reads the camera row for placement (the row is now only needed for zone polygons; the drawer's `cameraProblem` caption path is gone). docs/api.md gained "What space `objects[].box` is in": pixels of the detection frame, divide by det_width/det_height, the snapshot is a scaled copy of the same tap so fractions land, and the webhook payload carries no boxes at all — there is no second place the space has to agree with. The demo camera is the documented exception: its tap reads the fixture JPEG at the picture's own size.
+## Alternatives considered
+
+Normalise boxes to 0..1 at write time: lost because the rows already written are exactly the ones the card exists for — their frame size is the unknown, so they cannot be retroactively normalised, leaving two coordinate spaces in one column; it is also a breaking wire change for receivers that already divide by an out-of-band frame. Normalise on read only: lost because the row and the payload would disagree about the same number. Read-time resolution (the card's literal sketch of option 1): lost because it re-derives the frame from knobs that can move after the boxes were recorded — the frame is a fact about the moment of recording, so it belongs on the row. Expanding the webhook payload to carry boxes: out of scope; the card asked for agreement about the space, and a payload with no boxes trivially agrees once the docs say so.
+## Consequences
+
+Cost: one more column pair on events and a v3 migration every install runs; the mid-event-edit caveat is a documented wart rather than a solved problem; the demo camera's stored frame can disagree with its actual fixture size. Buys: the drawer places boxes on a default install (verified: e2e stack 15/15, dev postgres took the ALTER for real), the answer survives config drift and camera edits, and the API contract is now self-describing for third parties. Follow-up obligation: any future consumer of objects_json must read det_width/det_height first; rows written before P-10 keep 0 forever and the drawer's refusal exists only for them.
+

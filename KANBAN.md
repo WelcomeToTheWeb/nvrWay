@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 4 | 118 |
+| 0 | 0 | 1 | 3 | 119 |
 
 Total cards: **123**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
 | [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
 
@@ -229,6 +228,7 @@ _empty_
 | [`P-07`](kanban/cards/P-07.md) | Ignore the Hindsight artifacts the memory tool drops in the repo root | P-00, P-05 |
 | [`P-08`](kanban/cards/P-08.md) | storage_jobs.id is a uuid column; the purge jobs' "<id>:clip" suffix will not land on Postgres | S1-04 |
 | [`P-09`](kanban/cards/P-09.md) | Mirror the cards into the DeepSeek Harness workspace board (kanban/harness_board.py) | P-00, P-06 |
+| [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-12`](kanban/cards/P-12.md) | "Production server never mounted /ws: the hub was never constructed" | S6-08 |
 | [`P-13`](kanban/cards/P-13.md) | "test_the_environment_is_all_the_worker_needs_to_start is flaky: boot() kills on a log line emitted before the SIGTERM handler exists" | S5-09 |
 

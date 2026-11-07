@@ -101,3 +101,43 @@ func TestUserRoleJoinKeepsTheAssociationWritable(t *testing.T) {
 		t.Fatalf("expected the raw association insert to land, count = %d", count)
 	}
 }
+
+// TestMigrationThreeAddsTheDetFrameColumns exercises the branch a fresh
+// database never takes: an install from before P-10 has the events table
+// without det_width/det_height and has already recorded v1, so only v3's
+// ALTER can add the columns. A fresh install takes the other branch — v1's
+// AutoMigrate reads the model and v3 skips on HasColumn — and
+// TestMigrateIsIdempotent covers that one.
+func TestMigrationThreeAddsTheDetFrameColumns(t *testing.T) {
+	st := newTestStore(t)
+
+	// Rewind the schema to the pre-P-10 shape: drop the columns and forget
+	// that v3 ever ran. sqlite has answered ALTER TABLE ... DROP COLUMN
+	// since 3.35, and the driver here is newer than the plan.
+	if err := st.DB.Exec("ALTER TABLE events DROP COLUMN det_width").Error; err != nil {
+		t.Fatalf("rewind: drop det_width: %v", err)
+	}
+	if err := st.DB.Exec("ALTER TABLE events DROP COLUMN det_height").Error; err != nil {
+		t.Fatalf("rewind: drop det_height: %v", err)
+	}
+	if err := st.DB.Exec("DELETE FROM schema_migrations WHERE version = 3").Error; err != nil {
+		t.Fatalf("rewind: forget v3: %v", err)
+	}
+
+	if err := Migrate(st.DB); err != nil {
+		t.Fatalf("migrate over a pre-P-10 schema: %v", err)
+	}
+
+	for _, col := range []string{"det_width", "det_height"} {
+		if !st.DB.Migrator().HasColumn(&models.Event{}, col) {
+			t.Errorf("v3 added %s back", col)
+		}
+	}
+
+	// And the added column answers 0 — "not named" — to a row written before
+	// anyone resolved a frame, which is the whole contract of the default.
+	var width int
+	if err := st.DB.Raw("SELECT det_width FROM events LIMIT 1").Scan(&width).Error; err != nil && err.Error() != "record not found" {
+		t.Fatalf("read the default: %v", err)
+	}
+}

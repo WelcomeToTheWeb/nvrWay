@@ -54,6 +54,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"nvr/server/go2rtc"
 	"nvr/server/models"
 	"nvr/server/store"
 )
@@ -334,16 +335,24 @@ func (h *Handlers) applySignal(c *gin.Context, s signalPayload, now time.Time) (
 		return reply, ""
 	}
 
+	// The frame these boxes are pixels of (P-10): the detection tap's size,
+	// resolved by the one rule that renders the tap. Stored on the event so
+	// the console and any API reader can place the boxes without borrowing
+	// the camera row's knobs — which default to 0.
+	detW, detH := go2rtc.DetectionFrameSize(*cam, h.Cfg)
+
 	in := store.EventInput{
-		EventKey: s.EventKey,
-		CameraID: s.CameraID,
-		Action:   s.Action,
-		Rule:     s.Rule,
-		ZoneID:   s.ZoneID,
-		Severity: s.Severity,
-		Classes:  s.Classes,
-		Objects:  s.Objects,
-		TS:       now,
+		EventKey:  s.EventKey,
+		CameraID:  s.CameraID,
+		Action:    s.Action,
+		Rule:      s.Rule,
+		ZoneID:    s.ZoneID,
+		Severity:  s.Severity,
+		Classes:   s.Classes,
+		Objects:   s.Objects,
+		DetWidth:  detW,
+		DetHeight: detH,
+		TS:        now,
 	}
 
 	event, _, err := h.St.Events.UpsertByEventKey(c.Request.Context(), in)

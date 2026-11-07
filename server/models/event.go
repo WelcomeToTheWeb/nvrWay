@@ -55,6 +55,17 @@ type Event struct {
 	RulesJSON   string `gorm:"type:text;not null;default:'[]'" json:"rules_json"`
 	ObjectsJSON string `gorm:"type:text;not null;default:'[]'" json:"objects_json"`
 
+	// DetWidth/DetHeight name the frame the boxes in ObjectsJSON are pixels of
+	// (P-10). The worker sends `[x1, y1, x2, y2]` untransformed, in pixels of
+	// the detection tap it reads, and the tap's size is resolved server-side
+	// (camera row, falling back to GO2RTC_MJPEG_*); the intake stores that
+	// resolution here so the frame travels with the event — through a config
+	// change, and through the camera row's own edits. 0 means "not named":
+	// rows written before P-10, or an intake that could not resolve a size.
+	// A consumer that finds 0 must not place the boxes.
+	DetWidth  int `gorm:"not null;default:0" json:"det_width"`
+	DetHeight int `gorm:"not null;default:0" json:"det_height"`
+
 	Severity    int `gorm:"not null;default:1" json:"severity"`
 	SignalCount int `gorm:"not null;default:0" json:"signal_count"`
 

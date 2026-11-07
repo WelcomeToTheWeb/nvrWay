@@ -598,3 +598,84 @@ func TestInternalSignalsAnswerOneBatchOfMixedSignalsInOrder(t *testing.T) {
 		t.Errorf("two different keys are two different events")
 	}
 }
+
+// TestInternalSignalsRecordTheFrameTheBoxesArePixelsOf is P-10's server half:
+// the worker sends pixels of the detection tap and never says which frame, so
+// the intake resolves the tap's size — the camera row's detection_width/height
+// with the GO2RTC_MJPEG_* defaults underneath, the one rule that renders the
+// tap — and stores it on the event. The console and every API reader then
+// place the boxes without borrowing the camera row's knobs.
+func TestInternalSignalsRecordTheFrameTheBoxesArePixelsOf(t *testing.T) {
+	f := newDetectorFixture(t, testWorkerToken)
+
+	// A default installation: the row leaves both knobs at 0, and the frame
+	// is the installation's tap (the fixture sets 640×360).
+	cam := f.addCamera(t, "porch", true, true, models.RecordModeContinuous, "")
+	key := cam.ID + ":z1:intrusion:1000"
+	_, opened, _ := postSignals(t, f, []map[string]any{signal(cam.ID, key, models.SignalActionOpen)}, testWorkerToken)
+	events := repliedEvents(t, opened)
+	if events[0]["error"] != nil {
+		t.Fatalf("the open was accepted: %v", events[0])
+	}
+	id, _ := events[0]["id"].(string)
+
+	row, err := f.Store.Events.GetByKey(key)
+	if err != nil {
+		t.Fatalf("fetch the event: %v", err)
+	}
+	if row.DetWidth != 640 || row.DetHeight != 360 {
+		t.Errorf("a default row names the installation's tap: got %d×%d, want 640×360", row.DetWidth, row.DetHeight)
+	}
+
+	// The detail view carries it, so the drawer places the box without
+	// reading the camera row at all.
+	status, body, raw := do(t, f.Router, request{
+		method: http.MethodGet,
+		path:   "/api/v1/events/" + id,
+		bearer: viewerTokenFor(t, f),
+	})
+	if status != http.StatusOK {
+		t.Fatalf("the detail answers 200: %d %s", status, raw)
+	}
+	if body["det_width"] != float64(640) || body["det_height"] != float64(360) {
+		t.Errorf("the view names the frame the boxes are pixels of: got %v×%v (%s)", body["det_width"], body["det_height"], raw)
+	}
+
+	// A row that names its own tap wins over the installation default — the
+	// same precedence detectionSource renders with.
+	custom := f.addCamera(t, "gate", true, true, models.RecordModeContinuous, "")
+	custom.DetectionWidth, custom.DetectionHeight = 1280, 720
+	if err := f.Store.Cameras.Update(custom); err != nil {
+		t.Fatalf("set the row's tap size: %v", err)
+	}
+	cKey := custom.ID + ":z1:intrusion:2000"
+	_, opened2, _ := postSignals(t, f, []map[string]any{signal(custom.ID, cKey, models.SignalActionOpen)}, testWorkerToken)
+	if e := repliedEvents(t, opened2)[0]; e["error"] != nil {
+		t.Fatalf("the open was accepted: %v", e)
+	}
+	cRow, err := f.Store.Events.GetByKey(cKey)
+	if err != nil {
+		t.Fatalf("fetch the event: %v", err)
+	}
+	if cRow.DetWidth != 1280 || cRow.DetHeight != 720 {
+		t.Errorf("the row's own tap size wins: got %d×%d, want 1280×720", cRow.DetWidth, cRow.DetHeight)
+	}
+
+	// An installation that named no frame at all stores 0 — "not named" —
+	// and the event survives: the fact is the event, the frame is its
+	// annotation, and a consumer that finds 0 must place nothing.
+	f.Handlers.Cfg.Go2rtcMjpegWidth, f.Handlers.Cfg.Go2rtcMjpegHeight = 0, 0
+	none := f.addCamera(t, "shed", true, true, models.RecordModeContinuous, "")
+	nKey := none.ID + ":z1:intrusion:3000"
+	_, opened3, _ := postSignals(t, f, []map[string]any{signal(none.ID, nKey, models.SignalActionOpen)}, testWorkerToken)
+	if e := repliedEvents(t, opened3)[0]; e["error"] != nil {
+		t.Fatalf("the open was accepted even with no frame to name: %v", e)
+	}
+	nRow, err := f.Store.Events.GetByKey(nKey)
+	if err != nil {
+		t.Fatalf("fetch the event: %v", err)
+	}
+	if nRow.DetWidth != 0 || nRow.DetHeight != 0 {
+		t.Errorf("no frame anywhere resolves to 0, not to a guess: got %d×%d", nRow.DetWidth, nRow.DetHeight)
+	}
+}

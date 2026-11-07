@@ -163,6 +163,38 @@ func renderListeners(cfg *config.Config) string {
 	return out.String()
 }
 
+// DetectionFrameSize resolves the size of a camera's detection tap: the row's
+// detection_width/height, with the GO2RTC_MJPEG_* defaults underneath — the
+// same rule detectionSource renders into the transcode request, and the size
+// the worker's decoded frames (and therefore its boxes) are measured in.
+//
+// It is exported for the signal intake (P-10): the intake stores the answer on
+// the event row so the boxes travel with the frame they name. A 0 in either
+// axis means the installation named no frame at all — detectionSource turns
+// the same 0 into a refusal to render; the intake turns it into "not named",
+// because the event is the fact and the frame is its annotation.
+//
+// The demo camera is the documented exception: its tap reads the fixture JPEG
+// at the picture's own size, not at these numbers.
+func DetectionFrameSize(camera models.Camera, cfg *config.Config) (int, int) {
+	width, height := camera.DetectionWidth, camera.DetectionHeight
+	if cfg != nil {
+		if width <= 0 {
+			width = cfg.Go2rtcMjpegWidth
+		}
+		if height <= 0 {
+			height = cfg.Go2rtcMjpegHeight
+		}
+	}
+	if width <= 0 {
+		width = 0
+	}
+	if height <= 0 {
+		height = 0
+	}
+	return width, height
+}
+
 // detectionSource builds the `<slug>_det` source: the transcode request, with the
 // camera row's size and rate and the GO2RTC_MJPEG_* defaults underneath.
 //
@@ -181,17 +213,10 @@ func detectionSource(camera models.Camera, slug string, cfg *config.Config) (str
 		return DemoDetSource, nil
 	}
 
-	width, height, fps := camera.DetectionWidth, camera.DetectionHeight, camera.DetectionFPS
-	if cfg != nil {
-		if width <= 0 {
-			width = cfg.Go2rtcMjpegWidth
-		}
-		if height <= 0 {
-			height = cfg.Go2rtcMjpegHeight
-		}
-		if fps <= 0 {
-			fps = cfg.Go2rtcMjpegFPS
-		}
+	width, height := DetectionFrameSize(camera, cfg)
+	fps := camera.DetectionFPS
+	if cfg != nil && fps <= 0 {
+		fps = cfg.Go2rtcMjpegFPS
 	}
 	if width <= 0 {
 		return "", fmt.Errorf("camera %s: no detection width (set detection_width, or GO2RTC_MJPEG_WIDTH)", camera.ID)

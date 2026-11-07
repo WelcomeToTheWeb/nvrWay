@@ -57,7 +57,7 @@ interface Manifest {
 type State =
   | { kind: 'reading' }
   | { kind: 'failed'; reason: string }
-  | { kind: 'ready'; event: EventView; camera: CameraRefs | null; cameraProblem: string | null };
+  | { kind: 'ready'; event: EventView; camera: CameraRefs | null };
 
 /** The clip's four states, in the words that produced them. */
 function Clip({ event }: { event: EventView }) {
@@ -95,22 +95,17 @@ function Clip({ event }: { event: EventView }) {
  *
  * One SVG, stretched to the picture (`preserveAspectRatio="none"`), on a
  * `0..1000` canvas: the polygons arrive normalised so they always land, and the
- * boxes are divided by the frame the camera row names. When that frame is not
- * named, the boxes are not drawn at all — a box placed by a guess is worse than
- * no box, because it looks like evidence.
+ * boxes are divided by the frame the event itself names — `det_width`/
+ * `det_height` (P-10), the detection tap's size stored with the event, so the
+ * picture does not depend on the camera row's knobs or on the installation's
+ * current config. When the event names no frame (a row written before the
+ * frame was recorded), the boxes are not drawn at all — a box placed by a
+ * guess is worse than no box, because it looks like evidence.
  */
-function Overlay({
-  event,
-  camera,
-  cameraProblem,
-}: {
-  event: EventView;
-  camera: CameraRefs | null;
-  cameraProblem: string | null;
-}) {
+function Overlay({ event, camera }: { event: EventView; camera: CameraRefs | null }) {
   const frame =
-    camera && camera.detection_width > 0 && camera.detection_height > 0
-      ? { w: camera.detection_width, h: camera.detection_height }
+    event.det_width > 0 && event.det_height > 0
+      ? { w: event.det_width, h: event.det_height }
       : null;
 
   const boxes = frame ? event.objects.filter((o) => o.box.length === 4) : [];
@@ -155,10 +150,7 @@ function Overlay({
         {event.object_count} boxes recorded
         {frame
           ? ` · drawn on a ${frame.w}×${frame.h} frame`
-          : ` · not drawn: ${
-              cameraProblem ??
-              'this camera row leaves detection_width/detection_height at 0, so the frame these pixels belong to is not named and the drawer will not guess it'
-            }`}
+          : ' · not drawn: this event was written before the frame its pixels belong to was recorded, and the drawer will not guess it'}
       </p>
     </div>
   );
@@ -250,19 +242,18 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
         const { data } = await client.get<EventView>(`/v1/events/${id}`);
         if (!alive) return;
 
-        // The camera row is what makes the boxes placeable and the polygons
-        // visible. Its failure is not the drawer's failure: the event stands, and
-        // the drawer says what it lost.
+        // The camera row carries the zone polygons. Its failure is not the
+        // drawer's failure: the event stands, and the boxes place themselves —
+        // since P-10 the frame they need travels on the event, not the row.
         let camera: CameraRefs | null = null;
-        let cameraProblem: string | null = null;
         try {
           const cam = await client.get<CameraRefs>(`/v1/cameras/${data.camera_id}`);
           camera = cam.data;
-        } catch (error) {
-          cameraProblem = serverWords(error, 'the camera row could not be read');
+        } catch {
+          camera = null;
         }
 
-        if (alive) setState({ kind: 'ready', event: data, camera, cameraProblem });
+        if (alive) setState({ kind: 'ready', event: data, camera });
 
         const window = eventWindow(data);
         const params = new URLSearchParams({ camera_id: data.camera_id, from: window.from });
@@ -348,7 +339,7 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
             </div>
 
             <div className="mt-4">
-              <Overlay event={event} camera={state.camera} cameraProblem={state.cameraProblem} />
+              <Overlay event={event} camera={state.camera} />
             </div>
 
             <div className="mt-4">

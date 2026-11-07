@@ -57,6 +57,12 @@ export interface EventView {
   rules: string[];
   objects: EventObject[];
   object_count: number;
+  /** The frame `objects[].box` is pixels of (P-10): the detection tap's size,
+   * resolved and stored with the event. 0 means never named — a row written
+   * before the frame was recorded — and a reader that finds 0 shows the count
+   * and places nothing. */
+  det_width: number;
+  det_height: number;
   /** The row's claim, not the disk's. A flag can be true and its route still
    * answer a named 404 — the route is the truth. */
   has_snapshot: boolean;

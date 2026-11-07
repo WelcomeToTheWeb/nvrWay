@@ -332,6 +332,14 @@ type eventView struct {
 	Objects     []models.EventObject `json:"objects"`
 	ObjectCount int                  `json:"object_count"`
 
+	// DetWidth/DetHeight name the frame `objects` are pixels of (P-10): the
+	// detection tap's size, resolved and stored when the first signal naming
+	// it arrived. 0 means the frame was never named — a row written before
+	// P-10, or an installation with no tap size at all — and a reader that
+	// finds 0 must show the count and place nothing.
+	DetWidth  int `json:"det_width"`
+	DetHeight int `json:"det_height"`
+
 	// The two flags are the row's claim, not the disk's. A flag can be true and
 	// its route still answer a named 404 — the sweeper took the file, a volume
 	// came back without it — and the route is the truth.
@@ -385,6 +393,8 @@ func (h *Handlers) viewEvent(ev *models.Event, refs map[string]*cameraRefs, deta
 		Rules:            orEmpty(models.JSONStringList(ev.RulesJSON)),
 		Objects:          []models.EventObject{},
 		ObjectCount:      len(boxes),
+		DetWidth:         ev.DetWidth,
+		DetHeight:        ev.DetHeight,
 		HasSnapshot:      ev.LocalSnapshotPath != "",
 		HasClip:          ev.LocalClipPath != "",
 		ClipSeconds:      ev.ClipSeconds,

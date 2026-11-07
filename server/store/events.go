@@ -36,6 +36,14 @@ type EventInput struct {
 	Classes  []string
 	Objects  []models.EventObject
 
+	// DetWidth/DetHeight name the frame `Objects` are pixels of (P-10). The
+	// signal intake resolves them from the camera row with the detection
+	// tap's own fallback; 0 means "not named" and lands as 0 on the row.
+	// A later signal that names the frame fills columns an earlier one left
+	// at 0; a signal that names nothing never erases a named frame.
+	DetWidth  int
+	DetHeight int
+
 	// LocalSnapshotPath is set by the handler on an `open` signal, after it has
 	// written the JPEG. The store records where the file is; writing files is
 	// not a store method.
@@ -244,6 +252,14 @@ func applySignalTo(event *models.Event, in EventInput, ts time.Time) error {
 	}
 	if len(in.Objects) > 0 {
 		event.ObjectsJSON = appendObjects(event.ObjectsJSON, in.Objects)
+	}
+	// The frame the boxes are pixels of (P-10): fill a frame the row does not
+	// yet name, never overwrite one it does. A mid-event change of the tap
+	// size is the one case this gets one frame wrong, and it is stated in
+	// docs/api.md rather than silently papered over.
+	if event.DetWidth <= 0 && event.DetHeight <= 0 && in.DetWidth > 0 && in.DetHeight > 0 {
+		event.DetWidth = in.DetWidth
+		event.DetHeight = in.DetHeight
 	}
 
 	switch in.Action {

@@ -76,6 +76,29 @@ var migrations = []migration{
 		}
 		return db.Exec("ALTER TABLE storage_jobs ALTER COLUMN id TYPE text").Error
 	}},
+	// v3 names the frame the event boxes are pixels of (P-10). The worker
+	// sends pixels of the detection tap and the row stored them without ever
+	// saying which frame; the console could only borrow the size from the
+	// camera row, which defaults to 0. The intake now resolves the tap size
+	// (camera row, falling back to GO2RTC_MJPEG_*) and stores it per event,
+	// so the frame survives a config change and outlives the row that named
+	// it. Rows written before this migration keep 0 — "not named" — and a
+	// consumer that finds 0 must not place the boxes.
+	{version: 3, name: "events_det_frame", fn: func(db *gorm.DB) error {
+		// A fresh database already has the columns — v1's AutoMigrate reads the
+		// model, which carries them — so each ADD runs only where the column is
+		// genuinely missing. sqlite and Postgres both accept ADD COLUMN with a
+		// constant default; neither needs the table rebuilt for it.
+		for _, col := range []string{"det_width", "det_height"} {
+			if db.Migrator().HasColumn(&models.Event{}, col) {
+				continue
+			}
+			if err := db.Exec("ALTER TABLE events ADD COLUMN " + col + " integer NOT NULL DEFAULT 0").Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}},
 }
 
 // Migrate applies every pending migration, each inside its own transaction,

@@ -158,6 +158,36 @@ tier (S6-02, S6-03, S6-04).
 `q` matches camera and zone *names*, because that is what an operator types; the
 row stores zone ids, and the camera row holds the pair.
 
+### What space `objects[].box` is in
+
+A box is `[x1, y1, x2, y2]` in **pixels of the detection frame** — the
+`<slug>_det` tap's picture, top-left origin, not normalised, not the model's
+letterboxed square. The worker sends the corners untransformed and the server
+stores them verbatim, so the pixels are only meaningful next to the frame's
+size, and the event view names it: `det_width` × `det_height`.
+
+A receiver is supposed to divide: a box's left edge is `x1 / det_width` of the
+snapshot's width, its top is `y1 / det_height` of the height. The snapshot the
+event carries is a scaled copy of the same tap, so the fractions land on it.
+
+`det_width` or `det_height` of **0 means the frame was never named** — a row
+written before the frame was recorded (P-10), or an installation with no tap
+size anywhere. A consumer that finds 0 shows the count and places nothing: a
+box drawn against a guessed frame looks like evidence and is not one.
+
+The frame is resolved once, at signal intake, from the camera row's
+`detection_width`/`detection_height` falling back to `GO2RTC_MJPEG_WIDTH`/
+`GO2RTC_MJPEG_HEIGHT` — the same rule that renders the tap, so the stored
+number is the size go2rtc was asked to transcode to. It is stored on the event
+rather than re-derived on read, so it survives a later config change; the one
+case it gets one frame wrong is a tap-size edit *during* a live event, and the
+frame stored is the one the first signal named. The webhook payload carries no
+boxes at all (classes, zones, rules, and two media URLs — see the payload
+section), so there is no second place this space has to agree with.
+
+Zone polygons are the opposite contract and always were: validated into `0..1`
+on write, so they draw on any picture without a frame.
+
 ### The media routes
 
 `GET /api/v1/events/:id/snapshot` → `image/jpeg`

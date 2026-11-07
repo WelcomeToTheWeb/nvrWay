@@ -36,6 +36,8 @@ function event(over: Partial<EventView> = {}): EventView {
     rules: ['intrusion'],
     objects: [],
     object_count: 4,
+    det_width: 640,
+    det_height: 360,
     has_snapshot: true,
     has_clip: true,
     clip_seconds: 44,

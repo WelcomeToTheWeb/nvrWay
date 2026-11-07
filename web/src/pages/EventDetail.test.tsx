@@ -42,6 +42,8 @@ function event(over: Partial<EventView> = {}): EventView {
       { class: 'car', conf: 0.7, box: [0, 0, 640, 360] },
     ],
     object_count: 2,
+    det_width: 640,
+    det_height: 360,
     has_snapshot: true,
     has_clip: true,
     clip_seconds: 44,
@@ -192,11 +194,12 @@ describe('EventDetail — the clip', () => {
 });
 
 describe('EventDetail — the boxes and the frame they belong to', () => {
-  it('draws every recorded box on the frame the camera row names', async () => {
+  it('draws every recorded box on the frame the event names', async () => {
     const { container, h } = open();
     await waitFor(() => expect(container.querySelectorAll('rect')).toHaveLength(2));
-    // The worker's pixels are `[x1, y1, x2, y2]` in a 640×360 frame; the overlay
-    // canvas is 0..1000, so the person's left edge is 100/640 of the way across.
+    // The worker's pixels are `[x1, y1, x2, y2]` in the 640×360 frame the
+    // event row carries (P-10); the overlay canvas is 0..1000, so the
+    // person's left edge is 100/640 of the way across.
     const first = container.querySelector('rect') as SVGRectElement;
     expect(Number(first.getAttribute('x'))).toBeCloseTo(156.25, 2);
     expect(Number(first.getAttribute('width'))).toBeCloseTo(156.25, 2);
@@ -204,37 +207,51 @@ describe('EventDetail — the boxes and the frame they belong to', () => {
     h.restore();
   });
 
-  it('refuses to draw them when the installation never named the frame', async () => {
+  it('draws them on a default camera row — the frame travels on the event, not the row', async () => {
+    // P-10's whole point: the camera row's detection_width/height stay at 0
+    // and the boxes still land, because the intake stored the tap size with
+    // the event.
     const { container, h } = open({
       camera: { status: 200, data: camera({ detection_width: 0, detection_height: 0 }) },
+    });
+    await waitFor(() => expect(container.querySelectorAll('rect')).toHaveLength(2));
+    expect(screen.getByText(/drawn on a 640×360 frame/)).toBeTruthy();
+    h.restore();
+  });
+
+  it('refuses to draw them when the event itself names no frame', async () => {
+    // The rows this refusal is for were written before the frame was
+    // recorded; the count survives — what is withheld is the position, not
+    // the fact.
+    const { container, h } = open({
+      detail: { status: 200, data: event({ det_width: 0, det_height: 0 }) },
     });
     await screen.findByText(/2 boxes recorded/);
     expect(container.querySelectorAll('rect')).toHaveLength(0);
     expect(screen.getByText(/will not guess/)).toBeTruthy();
-    // The count survives: what is withheld is the position, not the fact.
     expect(screen.getByText(/2 boxes recorded/).textContent).toContain('2 boxes recorded');
     h.restore();
   });
 
   it('draws the zone polygon without a frame, because a polygon is stored normalised', async () => {
     const { container, h } = open({
-      camera: { status: 200, data: camera({ detection_width: 0, detection_height: 0 }) },
+      detail: { status: 200, data: event({ det_width: 0, det_height: 0 }) },
     });
     await waitFor(() => expect(container.querySelectorAll('polygon')).toHaveLength(1));
     expect(container.querySelector('polygon')?.getAttribute('points')).toBe('100,100 600,100 600,800');
     h.restore();
   });
 
-  it('says the frame is unreadable when the camera row itself is, and still shows the event', async () => {
-    const { h } = open({
+  it('still places the boxes when the camera row itself is unreadable', async () => {
+    // P-10 moved the frame onto the event, so a drawer that cannot read the
+    // camera row has lost the polygons, not the proof.
+    const { container, h } = open({
       camera: { status: 403, data: { error: 'you are not allowed to read cameras' } },
     });
     expect(await screen.findByText(/2 boxes recorded/)).toBeTruthy();
-    // The refusal is said where it is felt: in the caption that explains why the
-    // boxes are not on the picture.
-    expect(screen.getByText(/you are not allowed to read cameras/)).toBeTruthy();
-    // The event stands: a drawer that cannot name the frame is not a drawer that
-    // has lost the event.
+    await waitFor(() => expect(container.querySelectorAll('rect')).toHaveLength(2));
+    // The event stands: a drawer that cannot read the row is not a drawer
+    // that has lost the event.
     expect(screen.getByText('porch')).toBeTruthy();
     h.restore();
   });
