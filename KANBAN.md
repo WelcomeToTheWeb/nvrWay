@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 5 | 117 |
+| 0 | 0 | 1 | 4 | 118 |
 
 Total cards: **123**. In Progress limit: **2**.
 
@@ -42,7 +42,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
 | [`P-10`](kanban/cards/P-10.md) | "The event view carries recorded boxes in pixels of a frame it never names" | S6-04, S8-06 |
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
 | [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
@@ -222,6 +221,7 @@ _empty_
 | --- | --- | --- |
 | [`P-00`](kanban/cards/P-00.md) | git init + baseline commit + this board | — |
 | [`P-01`](kanban/cards/P-01.md) | Create the GitHub remote and push main | P-00 |
+| [`P-02`](kanban/cards/P-02.md) | Record the go.mod pin bump versus the plan (gin 1.12.0, x/crypto 0.57.0, gofakes3 v1.2.0) | S1-02 |
 | [`P-03`](kanban/cards/P-03.md) | Fix the red store test: empty-subject account lookup | — |
 | [`P-04`](kanban/cards/P-04.md) | Keep the board honest (move cards, record evidence) | P-00 |
 | [`P-05`](kanban/cards/P-05.md) | 'Track server/models: .gitignore''s models/ pattern ignored a Go package' | S0-05, S1-03, S1-04, S1-05, S1-06, S1-07 |
