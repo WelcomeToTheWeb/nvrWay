@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 18 | 103 |
+| 0 | 0 | 1 | 17 | 104 |
 
 Total cards: **122**. In Progress limit: **2**.
 
@@ -50,7 +50,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S10-01`](kanban/cards/S10-01.md) | testdata/fixtures.json + scripts/fetch-fixture.sh (pinned assets, recorded hashes) | S0-01 |
 | [`S10-02`](kanban/cards/S10-02.md) | Demo camera seeded through the public API + the go2rtc demo-only source | S3-02, S3-03, S9-04, S10-01 |
 | [`S10-03`](kanban/cards/S10-03.md) | verify.sh's nine gates pass (the v1 acceptance gate) | S2-06, S3-03, S4-05, S6-04, S7-08, S7-10, S6-06, S9-07, S10-02, S2-05 |
 | [`S10-04`](kanban/cards/S10-04.md) | fs storage tier seeded as default (local-tier) and exercised by verify.sh gate 7 | S7-03, S7-08, S10-02 |
@@ -221,6 +220,12 @@ _empty_
 | [`S9-04`](kanban/cards/S9-04.md) | "docker/docker-compose.yml (dev): six services, healthchecks, named volumes" | S9-01, S9-02, S9-03, S3-01 |
 | [`S9-05`](kanban/cards/S9-05.md) | "docker-compose.prod.yml: image-based, no builds, GO2RTC_PUBLIC_URL required" | S9-04 |
 | [`S9-07`](kanban/cards/S9-07.md) | "/health + /api/healthz with detector heartbeat (fresh/stale)" | S1-13, S5-09 |
+
+### Step 10 — Demo fixture, seeding, end-to-end
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S10-01`](kanban/cards/S10-01.md) | testdata/fixtures.json + scripts/fetch-fixture.sh (pinned assets, recorded hashes) | S0-01 |
 
 ### Process — Repo mechanics
 
