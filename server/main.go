@@ -117,6 +117,16 @@ func main() {
 		log.Printf("go2rtc: %d streams, %d detection taps, config applied from %d active camera rows (%s)",
 			report.Streams, report.Detected, report.Cameras, cfg.Go2rtcURL)
 	}
+	// P-14, the trade the credentials are: they protect the sidecar's config
+	// writes, and the sidecar then answers 401 to every browser request —
+	// including the live view's WebSocket, which a browser cannot attach
+	// basic auth to. The live page fails as "unreachable", which reads like a
+	// network fault, so the boot line names the cause while the env is still
+	// on screen. The decision and the escape hatches are in
+	// docs/configuration.md.
+	if cfg.Go2rtcUsername != "" || cfg.Go2rtcPassword != "" {
+		log.Printf("WARNING: GO2RTC_USERNAME/PASSWORD are set: the sidecar API (including the live view's /api/ws) will refuse browser connections, because a browser cannot present basic auth on a WebSocket. Live view needs the sidecar unauthenticated (trusted-LAN default) or reverse-proxied — see docs/configuration.md")
+	}
 
 	// Step 4 (S4-01): the recorder, inserted where the plan puts it in the boot
 	// order — after the media sidecar it reads from, before the API that reports

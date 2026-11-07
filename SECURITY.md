@@ -52,6 +52,14 @@ Each bullet is a promise the code must keep; each is checkable.
   (`GO2RTC_USERNAME`/`GO2RTC_PASSWORD`), and its RTSP/WebRTC ports
   (8554/8555) are published. The question: which ports may face a LAN, and
   which must never face a WAN.
+  **Answered (P-14):** all three ports are browser-facing by design — live
+  view dials the API's `/api/ws` from the browser and WebRTC media reaches
+  8554/8555 directly — so the sidecar belongs on the trusted network and
+  **never on a WAN**. The API credentials protect config writes from other
+  hosts on that network, at the cost of browser live view (a browser cannot
+  present basic auth on a WebSocket); the default is unset, and operators who
+  set them must reverse-proxy the sidecar. Full trade in
+  `docs/configuration.md`.
 - **Webhooks are signed, not encrypted.** `X-NVR-Signature` is
   HMAC-SHA256 over the delivery payload (S6-06). Say what a recipient must
   verify, and that the payload itself is plaintext.

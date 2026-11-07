@@ -7,9 +7,9 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 2 | 120 |
+| 0 | 0 | 1 | 1 | 123 |
 
-Total cards: **123**. In Progress limit: **2**.
+Total cards: **125**. In Progress limit: **2**.
 
 
 ## In Progress
@@ -37,12 +37,6 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S9-10`](kanban/cards/S9-10.md) | Docs content: architecture, configuration, api, installation (decisions, not filler) | S0-02, S6-05, S7-09, S9-06 |
-
-### Process — Repo mechanics
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
 
 ## Done
 
@@ -231,6 +225,9 @@ _empty_
 | [`P-11`](kanban/cards/P-11.md) | "The console is never told the pre/post roll, so the drawer's strip cannot show what the clip contains" | S6-01, S8-06 |
 | [`P-12`](kanban/cards/P-12.md) | "Production server never mounted /ws: the hub was never constructed" | S6-08 |
 | [`P-13`](kanban/cards/P-13.md) | "test_the_environment_is_all_the_worker_needs_to_start is flaky: boot() kills on a log line emitted before the SIGTERM handler exists" | S5-09 |
+| [`P-14`](kanban/cards/P-14.md) | "The rendered sidecar config protects /api/ws with basic auth a browser cannot present — live view unreachable" | S3-02, S8-05 |
+| [`P-15`](kanban/cards/P-15.md) | "The rendered api.origin:* never reaches the sidecar's WS check — a fresh sidecar 403s the console's live view" | S3-02, S3-05, S8-05 |
+| [`P-16`](kanban/cards/P-16.md) | "go2rtc's POST /api/config only writes the file — the running sidecar never applies the server's rendered streams" | S3-01, S3-05, P-15 |
 
 ## Board health
 

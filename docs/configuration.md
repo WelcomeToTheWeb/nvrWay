@@ -12,7 +12,7 @@ this same table as an env file.
 | `DATA_DIR` | `/var/lib/nvr` | root of media |
 | `SEGMENTS_DIR`/`CLIPS_DIR`/`SNAPSHOTS_DIR` | `$DATA_DIR/{segments,clips,snapshots}` | derived if unset |
 | `GO2RTC_URL` | `http://go2rtc:1984` | go2rtc API |
-| `GO2RTC_USERNAME`/`GO2RTC_PASSWORD` | empty | basic auth for go2rtc API |
+| `GO2RTC_USERNAME`/`GO2RTC_PASSWORD` | empty | basic auth for go2rtc API — **breaks browser live view when set**; see below |
 | `GO2RTC_RTSP_URL` | `rtsp://go2rtc:8554` | recorder ingest base |
 | `GO2RTC_PUBLIC_URL` | `http://localhost:1984` | browser-facing base for live view |
 | `GO2RTC_MJPEG_WIDTH`/`GO2RTC_MJPEG_HEIGHT`/`GO2RTC_MJPEG_FPS` | `640`/`360`/`5` | detection tap transcoding |
@@ -83,6 +83,24 @@ address this server cannot know from the inside:
   instance outside that compose network;
 - `GO2RTC_PUBLIC_URL` is the browser-facing base for *live view*, which is a
   different process on a different port.
+
+**The sidecar API is a trusted-LAN service (P-14).** Setting
+`GO2RTC_USERNAME`/`GO2RTC_PASSWORD` makes the server render them into the
+sidecar's `api:` block, and go2rtc then answers `401` to every browser
+request — including the live view's `/api/ws` WebSocket, which a browser
+**cannot** attach basic auth to (the WebSocket API offers no header, and the
+console holds no sidecar credential to attach even if it could). With the
+credentials set, live view fails as `unreachable` on every tile, and the
+server logs a warning naming this at boot.
+
+Why the answer is network placement and not a server-side WS proxy: the
+sidecar is browser-facing *by design* — WebRTC media reaches its `8554`/`8555`
+ports directly from the browser, so proxying only the control WebSocket does
+not remove the LAN exposure it would be protecting against. The honest
+choices are therefore: leave the credentials unset on a trusted network (the
+template's default, and what the e2e stack runs), or set them and
+reverse-proxy the sidecar so the proxy — not the browser — carries the auth.
+`docker/.env.example` ships them commented out with this trade stated.
 
 So the installation states it. Set it to the origin an outside machine uses —
 `http://192.168.1.20:8080`, or `https://cam.example.com/nvr` behind a reverse proxy
