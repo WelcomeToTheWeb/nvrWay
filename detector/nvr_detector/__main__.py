@@ -88,19 +88,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     max_cameras = _env_int("DET_MAX_CAMERAS", DEFAULT_MAX_CAMERAS)
     providers = providers_from_env()
 
-    log.info(
-        "nvr_detector: server=%s model=%s providers=%s go2rtc=%s timeout=%.1fs max_cameras=%d",
-        server_url,
-        model_path,
-        ",".join(providers),
-        go2rtc_url,
-        http_timeout,
-        max_cameras,
-    )
-
-    # Handlers before anything slow: `docker stop` can arrive while a 12 MB model is
-    # still loading, and a worker that dies on the default SIGTERM action turns a
-    # redeploy into exit 143 in the operator's log for no reason.
+    # Handlers before anything slow — and before the boot line: the test suite
+    # (and any supervisor that tails logs) treats `nvr_detector: server=` as the
+    # readiness signal, and a kill that lands between that line and the handler
+    # registration dies on the default SIGTERM action (P-13: `assert -15 == 0`).
+    # `docker stop` can arrive while a 12 MB model is still loading, and a
+    # worker that dies on the default SIGTERM action turns a redeploy into exit
+    # 143 in the operator's log for no reason.
     stop = threading.Event()
 
     def _request_stop(signum, _frame):  # noqa: ANN001 - the signal handler's signature
@@ -115,6 +109,16 @@ def main(argv: Optional[list[str]] = None) -> int:
                 signal.signal(signum, _request_stop)
             except ValueError:  # pragma: no cover - not the main thread, e.g. under a test runner
                 pass
+
+    log.info(
+        "nvr_detector: server=%s model=%s providers=%s go2rtc=%s timeout=%.1fs max_cameras=%d",
+        server_url,
+        model_path,
+        ",".join(providers),
+        go2rtc_url,
+        http_timeout,
+        max_cameras,
+    )
 
     if not token:
         log.warning(
