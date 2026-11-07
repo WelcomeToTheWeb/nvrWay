@@ -112,5 +112,20 @@ func watchConsole(t *testing.T, fx *cameraFixture) chan map[string]any {
 			frames <- frame
 		}
 	}()
-	return frames
+	// The dial returning is not the same fact as "this socket is in the hub's
+	// client set": the handler registers the client after the handshake, and a
+	// write that broadcasts in that window reaches nobody — the test then waits
+	// three seconds for a frame that was never sent. That is the flake this
+	// helper used to have (S11-01). The hub announces presence right after it
+	// registers, so the first presence frame is the proof to wait for.
+	for {
+		select {
+		case frame := <-frames:
+			if frame["type"] == "presence" {
+				return frames
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("the console socket never announced presence: the hub did not register it")
+		}
+	}
 }

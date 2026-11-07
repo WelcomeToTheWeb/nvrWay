@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 10 | 111 |
+| 0 | 0 | 1 | 9 | 112 |
 
 Total cards: **122**. In Progress limit: **2**.
 
@@ -48,7 +48,6 @@ _empty_
 
 | Card | Title | Depends |
 | --- | --- | --- |
-| [`S11-01`](kanban/cards/S11-01.md) | Go suite green: go2rtc, media, storage, sweeper, sso, api, webhooks, ws | S2-11, S3-06, S4-07, S6-05, S7-10, S7-09, S6-06 |
 | [`S11-02`](kanban/cards/S11-02.md) | Detector suite green: pytest -m 'not slow' + the slow smoke | S5-11 |
 | [`S11-03`](kanban/cards/S11-03.md) | Console suite green: typecheck + vitest | S8-11 |
 | [`S11-04`](kanban/cards/S11-04.md) | E2E suite green: scripts/e2e-stack.sh test (Playwright chromium) | S8-12, S10-02 |
@@ -219,6 +218,12 @@ _empty_
 | [`S10-02`](kanban/cards/S10-02.md) | Demo camera seeded through the public API + the go2rtc demo-only source | S3-02, S3-03, S9-04, S10-01 |
 | [`S10-03`](kanban/cards/S10-03.md) | verify.sh's nine gates pass (the v1 acceptance gate) | S2-06, S3-03, S4-05, S6-04, S7-08, S7-10, S6-06, S9-07, S10-02, S2-05 |
 | [`S10-04`](kanban/cards/S10-04.md) | fs storage tier seeded as default (local-tier) and exercised by verify.sh gate 7 | S7-03, S7-08, S10-02 |
+
+### Step 11 — Test suite CI runs
+
+| Card | Title | Depends |
+| --- | --- | --- |
+| [`S11-01`](kanban/cards/S11-01.md) | "Go suite green: go2rtc, media, storage, sweeper, sso, api, webhooks, ws" | S2-11, S3-06, S4-07, S6-05, S7-10, S7-09, S6-06 |
 
 ### Process — Repo mechanics
 

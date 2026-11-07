@@ -627,6 +627,14 @@ func (r *Recorder) startRunLocked(ctx context.Context, cam models.Camera) {
 			delete(r.runs, cam.ID)
 		}
 		r.mu.Unlock()
+		// The deleter owns the child. Without this, a loop that unwinds just
+		// before shutdown can delete its entry before stopAll snapshots the
+		// map, and stopAll then terminates nothing it can still see: the
+		// child outlives the recorder and the shutdown test times out
+		// (S11-01, reproduced in golang:1.26). run.stop is idempotent
+		// (sync.Once on the real process), so the shutdown path calling it
+		// again after this is free.
+		run.stop()
 	}()
 }
 
