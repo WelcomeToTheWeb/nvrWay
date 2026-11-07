@@ -510,25 +510,35 @@ API client) or to the CUDA overlay below.
 
 ## Inference host: CPU default, CUDA overlay
 
-**CPU ONNX is the only inference path this repo ships and has verified. The
-CUDA overlay is a planned artifact (`docker-compose.gpu.yml`, card S9-06)
-that does not exist yet, because the hardware to verify it never arrived.**
+**CPU ONNX is the default and the baseline every install gets; CUDA is a
+compose overlay (`docker-compose.gpu.yml`) that is shipped and verified — on
+a host with the NVIDIA container toolkit, which the dev box now is.**
 
-The dev box has no NVIDIA container toolkit and no `/dev/nvidia*` nodes, so
-no CUDA claim in this repo has ever been executed — not once, not in a test.
-What ships today: the CPU path, end to end, observed (detect-smoke, the e2e
-stack, verify.sh gate 4). What documents the GPU path: `docs/gpu-on-lxc.md`
-(S3-08) — the unprivileged LXC guest, the device nodes the host must expose,
-the toolkit install — written as the map for whoever lands the hardware.
-What does not ship: the compose overlay itself. When S9-06 runs, the overlay
-will set the GPU device reservation, `NVIDIA_VISIBLE_DEVICES=all`, and
-`DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider` — the CPU provider
-staying in the list so a worker that cannot open CUDA falls back instead of
-dying — and it will be verified or it will not be claimed.
+The split is deliberate. The CPU image is what `docker compose up` gives
+you: no driver story, no 2 GB of CUDA wheels, and a sizing claim measured on
+hardware (the Detection section). The GPU image is the same worker, same
+model, same entry point — stage 3 of `docker/Dockerfile.detector` swaps
+`onnxruntime` for `onnxruntime-gpu` and adds the five CUDA libraries the
+provider dlopens (`ldd` names them; missing one degrades the session to CPU
+with a warning, which is exactly why the worker logs the **active** providers
+after substitution, not the requested ones). The overlay adds the device
+reservation and `DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider` —
+CPU staying in the list so a worker that cannot open CUDA falls back and
+warns instead of dying.
 
-A reader must not mistake the documented path for the tested one, which is
-why the distinction lives here, in the card (S9-06, still open), and in
-`docs/installation.md` § 12, not only in a footnote.
+What was **observed** on this box (RTX 4070 Laptop, driver 615.78.08,
+nvidia-container-toolkit 1.20.1, 2026-11-07): the worker recreated under the
+overlay loads yolov8n.onnx with `CUDAExecutionProvider` active, holds 288 MiB
+of GPU memory, and the container's CPU fell from ~3.4 cores to under 5% with
+events still arriving seconds after boot. `scripts/gpu-probe.sh --cuda` is
+the check that says whether a host can run this at all — it opens every
+device node and runs a real CUDA compute, because NVML passing while CUDA
+fails is this box's own documented history (`docs/gpu-on-lxc.md`).
+
+The one claim that remains **not** verified: performance at scale. The GPU
+path is proven to work, not proven to be needed — the CPU baseline's
+4–8-camera sizing stands, and the overlay exists for the site that outgrows
+it without buying another host.
 
 ## Retention
 
@@ -617,7 +627,7 @@ What a 16-camera v2 site changes, in the order the constraints bind:
 
 ## Gaps v1 leaves open, stated
 
-The intro promised the gaps would be stated, not discovered. Three, each
+The intro promised the gaps would be stated, not discovered. Two, each
 where it is decided, collected here so one read is enough:
 
 - **Remote seek.** A clip that lives only on the storage tier streams from
@@ -630,10 +640,12 @@ where it is decided, collected here so one read is enough:
   NVR than be analyzed still has to be analyzed. This is a v2 item (README
   roadmap), and the honest v1 statement is: nothing to configure, nothing to
   expect.
-- **GPU verification.** CUDA is documented (`docs/gpu-on-lxc.md`) and not
-  shipped or tested; CPU ONNX is the only verified inference path. §
-  [Inference host](#inference-host-cpu-default-cuda-overlay) and card S9-06,
-  still open.
+
+A third gap that **closed** (S9-06, 2026-11-07): GPU verification. The CUDA
+overlay ships and was verified on the dev box with the NVIDIA container
+toolkit — § [Inference host](#inference-host-cpu-default-cuda-overlay). What
+remains open there is only the performance-at-scale claim: the GPU path is
+proven to work, not proven to be needed.
 
 ## Test seams
 

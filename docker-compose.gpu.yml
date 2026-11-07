@@ -1,0 +1,48 @@
+# =============================================================================
+# nvrWay GPU overlay (S9-06) — CUDA inference for the detection worker
+# =============================================================================
+# Usage (from the repo root):
+#
+#   docker compose -f docker/docker-compose.yml -f docker-compose.gpu.yml up -d
+#   docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up -d
+#
+# Both stacks BUILD the GPU image (stage 3 of docker/Dockerfile.detector) —
+# the CUDA variant is not published to ghcr, by design: it is ~2 GB of CUDA
+# wheels, and the CPU image is the baseline every install gets. The build
+# reuses the CPU image's layers; only the ONNX Runtime swap is new.
+#
+# Prerequisites (the host side is docs/gpu-on-lxc.md; the check is
+# scripts/gpu-probe.sh --cuda): NVIDIA container toolkit on the host, and a
+# driver new enough for the CUDA 13 wheels — a CUDA 12-era driver answers
+# `CUDA failure 999`, which the probe names.
+#
+# What this changes and what it does not: only the detector service. The
+# server, console, go2rtc and Postgres are identical — GPU placement is a
+# worker concern, and the worker is only an API client, so this overlay is
+# the entire GPU story of the deployment.
+# =============================================================================
+
+services:
+  detector:
+    # Complete build section on purpose: relative paths resolve against this
+    # file's directory (the repo root), which is the same build context the
+    # dev compose uses (`..` from docker/), so one section serves both stacks.
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.detector
+      target: runtime-gpu
+    image: nvr/detector:gpu
+    environment:
+      # CUDA first, CPU always in the list: a worker that cannot open CUDA
+      # falls back and logs, it does not die. The image default says the
+      # same; this line states it at the deployment, where operators look.
+      DET_PROVIDERS: CUDAExecutionProvider,CPUExecutionProvider
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

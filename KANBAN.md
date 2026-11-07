@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 0 | 125 |
+| 0 | 0 | 0 | 0 | 126 |
 
 Total cards: **126**. In Progress limit: **2**.
 
@@ -22,12 +22,7 @@ _empty_
 
 ## Blocked
 
-
-### Step 9 — Containers, compose, scripts, CI
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S9-06`](kanban/cards/S9-06.md) | GPU overlay: docker-compose.gpu.yml + the CPU-baseline story in docs | S9-04 |
+_empty_
 
 ## Backlog
 
@@ -179,6 +174,7 @@ _empty_
 | [`S9-03`](kanban/cards/S9-03.md) | "Dockerfile.web + nginx.conf: vite build -> nginx proxying /api and /ws" | S8-01 |
 | [`S9-04`](kanban/cards/S9-04.md) | "docker/docker-compose.yml (dev): six services, healthchecks, named volumes" | S9-01, S9-02, S9-03, S3-01 |
 | [`S9-05`](kanban/cards/S9-05.md) | "docker-compose.prod.yml: image-based, no builds, GO2RTC_PUBLIC_URL required" | S9-04 |
+| [`S9-06`](kanban/cards/S9-06.md) | "GPU overlay: docker-compose.gpu.yml + the CPU-baseline story in docs" | S9-04 |
 | [`S9-07`](kanban/cards/S9-07.md) | "/health + /api/healthz with detector heartbeat (fresh/stale)" | S1-13, S5-09 |
 | [`S9-08`](kanban/cards/S9-08.md) | "scripts: dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh, fetch-fixture.sh" | S9-04, S10-02, S10-03 |
 | [`S9-09`](kanban/cards/S9-09.md) | .github/workflows/build.yml: four jobs | P-01, S1-14, S5-11, S8-11 |

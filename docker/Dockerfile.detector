@@ -95,3 +95,54 @@ ENV TZ=UTC
 # /api/internal/v1/heartbeat every 30 s and /api/healthz reports fresh/stale
 # (S9-07). The container healthcheck is therefore the process check.
 CMD ["python", "-m", "nvr_detector"]
+
+# --- Stage 3: GPU runtime (S9-06) ----------------------------------------------
+# The CUDA variant of the runtime image: same worker, same model, same entry
+# point — only the ONNX Runtime build differs. `onnxruntime` (CPU) is replaced
+# by `onnxruntime-gpu` (the CUDA 13 build of the plan's pin; the host driver
+# line is 615.78.08 = CUDA 13.x, and a CUDA 12 wheel fails here with
+# `CUDA failure 999` — the trap gpu-probe.sh documents), plus the cuDNN 9 the
+# wheel does not pull as a dependency. The CUDA libraries themselves come
+# from the wheels' own nvidia-* dependencies, installed into site-packages;
+# ld.so is pointed at them at build time so the runtime needs no
+# LD_LIBRARY_PATH and the unprivileged `nvr` user sees them too.
+#
+# Selected by docker-compose.gpu.yml (`build.target: runtime-gpu`). Because
+# this is the final stage, every consumer must name its target explicitly —
+# the base compose pins `target: runtime` for exactly this reason; a default
+# build here would silently turn the CPU baseline into a 2 GB CUDA image.
+FROM runtime AS runtime-gpu
+
+# The runtime stage ends as the unprivileged `nvr` user; pip needs root here
+# (site-packages and /usr/local/bin are root-owned — as nvr, the uninstall
+# dies on `/usr/local/bin/onnxruntime_test` and the install on site-packages).
+# The stage hands the non-root user back before it ends, so the shipped
+# container is unchanged in that respect.
+USER root
+
+# The `nvidia-*` wheels beyond the declared dependencies are not decoration:
+# `ldd libonnxruntime_providers_cuda.so` names them — libcudart, libcufft,
+# libcurand, libcusolver, libcusparse — and the CUDA EP dlopens them at
+# provider-creation time (`libcurand.so.10: cannot open shared object file`
+# is the exact failure without them), so the session silently degrades to
+# CPU — the failure mode this stage exists to prevent. Unsuffixed names on
+# purpose: CUDA 13 consolidated the wheels (`nvidia-curand`, not
+# `nvidia-curand-cu13` — the suffixed names are 0.0.1 placeholders on PyPI).
+# The one remaining `not found` in that ldd is libcuda.so.1 — the *driver*
+# library, injected by the NVIDIA container toolkit at container start; it
+# must never be pip-installed.
+RUN pip uninstall -y --no-cache-dir onnxruntime \
+    && pip install --no-cache-dir onnxruntime-gpu==1.31.1 nvidia-cudnn-cu13 \
+        nvidia-cuda-runtime nvidia-cufft nvidia-curand nvidia-cusolver nvidia-cusparse
+
+# Register every pip-shipped nvidia library dir with the dynamic linker.
+# Done as a build step (not ENV) so it survives any entrypoint and any user.
+RUN python3 -c "import glob, site; open('/etc/ld.so.conf.d/nvr-nvidia.conf','w').write('\n'.join(glob.glob(site.getsitepackages()[0] + '/nvidia/*/lib')) + '\n')" \
+    && ldconfig
+
+USER nvr:nvr
+
+# The image default asks for CUDA first; CPU stays in the list so a worker
+# that cannot open CUDA falls back instead of dying (the same rule the
+# overlay's env states).
+ENV DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider

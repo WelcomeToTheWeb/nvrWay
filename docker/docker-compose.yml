@@ -168,6 +168,11 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.detector
+      # Explicit, not "the last stage": the Dockerfile's final stage is the
+      # GPU variant (S9-06), and a default build that silently became the
+      # 2 GB CUDA image was the bug this line prevents. The GPU overlay
+      # overrides this with `target: runtime-gpu`.
+      target: runtime
     image: nvr/detector:latest
     container_name: nvr-detector
     restart: unless-stopped

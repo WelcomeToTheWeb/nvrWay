@@ -11,7 +11,7 @@ detection worker, one console. Target scale 4–8 cameras on one machine.
 [6. Camera setup](#6-camera-setup) · [7. OIDC provider setup](#7-oidc-provider-setup) ·
 [8. Storage tier setup](#8-storage-tier-setup) · [9. Webhooks](#9-webhooks) ·
 [10. Retention math](#10-retention-math) · [11. TLS and remote view](#11-tls-reverse-proxy-and-remote-view) ·
-[12. GPU overlay](#12-gpu-overlay-documented-not-verified-here) ·
+[12. GPU overlay](#12-gpu-overlay-shipped-verified-on-a-gpu-host) ·
 [13. Verify](#13-verify-the-installation) · [14. Backup/upgrade/restore](#14-backup-upgrade-restore) ·
 [15. Uninstall](#15-uninstall) · [Troubleshooting](#troubleshooting)
 
@@ -28,7 +28,7 @@ detection worker, one console. Target scale 4–8 cameras on one machine.
 - GPU (optional, for the overlay only): NVIDIA container toolkit on the host
   and `/dev/nvidia*` nodes in the container's reach. Without them the CPU
   path is the only supported one, and it is a supported one, not a consolation
-  prize. See [§ 12](#12-gpu-overlay-documented-not-verified-here).
+  prize. See [§ 12](#12-gpu-overlay-shipped-verified-on-a-gpu-host).
 
 ## 1. Get the images
 
@@ -295,23 +295,38 @@ reachable too — if ICE cannot connect, the tile says `unreachable` and the
 REST side keeps working, which is the diagnostic that tells you it is the
 media path, not the console.
 
-## 12. GPU overlay (documented, not verified here)
+## 12. GPU overlay (shipped, verified on a GPU host)
 
-**There is no GPU overlay in this repo yet, and no CUDA claim has ever been
-executed here.** Card S9-06 (open) ships `docker-compose.gpu.yml` — device
-reservation, `NVIDIA_VISIBLE_DEVICES=all`,
-`DET_PROVIDERS=CUDAExecutionProvider,CPUExecutionProvider` — and it will be
-verified on hardware before it is claimed.
+The CUDA overlay is `docker-compose.gpu.yml`, and it is verified — on a host
+with the NVIDIA container toolkit, which is a prerequisite, not a suggestion
+(`scripts/gpu-probe.sh --cuda` is the check; it opens every device node and
+runs a real CUDA compute, because NVML passing while CUDA fails is a real
+failure mode this repo has lived through — `docs/gpu-on-lxc.md`).
 
-What exists today: the CPU path (the only verified one), and
-[`docs/gpu-on-lxc.md`](gpu-on-lxc.md) — the host-side map for the LXC guest,
-device nodes and NVIDIA container toolkit, written from S3-08's investigation
-so the hardware day is an install, not a research project.
+```bash
+# from the repo root, either stack:
+docker compose -f docker/docker-compose.yml -f docker-compose.gpu.yml up -d
+docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up -d
+```
 
-`DET_PROVIDERS` is already wired end to end (server config → detector config
-payload → worker), so the overlay is compose, not code. Until it lands,
-sizing questions have one answer: CPU, 4–8 cameras, motion gate doing the
-heavy lifting.
+Both stacks **build** the GPU image (stage 3 of `docker/Dockerfile.detector`
+— the CUDA variant is not published to ghcr: it is ~2 GB of CUDA wheels and
+the CPU image is the baseline). The overlay changes only the detector: the
+server, console, go2rtc and Postgres are identical, because GPU placement is
+a worker concern and the worker is only an API client.
+
+What to expect after `up -d`: the worker's startup line reads
+`providers=CUDAExecutionProvider,CPUExecutionProvider` — that line prints
+the **active** providers, so if CUDA failed to load you will see the
+substitution warned and the CPU list instead. `nvidia-smi` shows the worker
+holding a few hundred MiB. If CUDA is unavailable the worker **falls back to
+CPU and keeps running** — the deployment degrades, it does not die.
+
+The verified host (2026-11-07): RTX 4070 Laptop, driver 615.78.08,
+nvidia-container-toolkit 1.20.1 — CUDA active on the real model, container
+CPU from ~3.4 cores to under 5%, events flowing. What is **not** claimed:
+performance at scale; the CPU baseline's 4–8-camera sizing stands, and the
+overlay is for the site that outgrows it without buying another host.
 
 ## 13. Verify the installation
 

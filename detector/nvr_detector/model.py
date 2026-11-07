@@ -350,6 +350,24 @@ class YoloOnnx:
                 session = InferenceSession(self.path, providers=wanted)
             else:
                 raise
+        # The build *having* a provider is not the session *using* it: with the
+        # CUDA wheel installed but no GPU reachable from the container,
+        # onnxruntime opens the session anyway, runs it on CPU, and warns only
+        # on its own logger. The startup line must say what is running, not
+        # what was asked for — otherwise a GPU overlay that lost its device
+        # looks healthy forever. (Observed 2026-11-07: exactly this, with the
+        # log claiming CUDA while nvidia-smi showed no process.)
+        active = session.get_providers()
+        silent = [p for p in wanted if p not in active]
+        if silent:
+            log.warning(
+                "model: %s were requested but the session opened on %s — inference is "
+                "running there, not on the requested providers (a CUDA provider with no "
+                "GPU reachable is the usual cause: check the container's device access)",
+                ", ".join(silent),
+                ", ".join(active) or "nothing",
+            )
+            wanted = active
         self.providers = wanted
         return session
 

@@ -93,8 +93,8 @@ command that proves them; [`docs/kanban.md`](docs/kanban.md) is the convention.
 ## Key Design Decisions
 
 - **CPU ONNX is the verified baseline**, not the fallback. `yolov8n` at
-  5 FPS / 640×360 is sized for ~4 cameras on 4 vCPU; CUDA ships as a documented
-  compose overlay and is verified only on hosts with the NVIDIA container toolkit.
+  5 FPS / 640×360 is sized for ~4 cameras on 4 vCPU; CUDA ships as the
+  `docker-compose.gpu.yml` overlay, verified on a host with the NVIDIA container toolkit.
 - **Slug is the stream name.** `^[a-z0-9][a-z0-9-]{1,31}$`, unique, and used
   verbatim by go2rtc — there is no mapping table to drift.
 - **Camera writes always re-render go2rtc's config** from the rows, so config
