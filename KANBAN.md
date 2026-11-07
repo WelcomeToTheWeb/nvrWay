@@ -7,7 +7,7 @@ Plan: [`NVRWAY_V1_PLAN.md`](NVRWAY_V1_PLAN.md) — cards cite the step they impl
 
 | In Progress | Review | Blocked | Backlog | Done |
 | ---: | ---: | ---: | ---: | ---: |
-| 0 | 0 | 1 | 6 | 116 |
+| 0 | 0 | 1 | 5 | 117 |
 
 Total cards: **123**. In Progress limit: **2**.
 
@@ -37,12 +37,6 @@ _empty_
 | Card | Title | Depends |
 | --- | --- | --- |
 | [`S9-10`](kanban/cards/S9-10.md) | Docs content: architecture, configuration, api, installation (decisions, not filler) | S0-02, S6-05, S7-09, S9-06 |
-
-### Step 11 — Test suite CI runs
-
-| Card | Title | Depends |
-| --- | --- | --- |
-| [`S11-05`](kanban/cards/S11-05.md) | Coverage ratchet recorded (coverage.sh --record) | S11-01, S11-02, S11-03 |
 
 ### Process — Repo mechanics
 
@@ -220,6 +214,7 @@ _empty_
 | [`S11-02`](kanban/cards/S11-02.md) | "Detector suite green: pytest -m 'not slow' + the slow smoke" | S5-11 |
 | [`S11-03`](kanban/cards/S11-03.md) | "Console suite green: typecheck + vitest" | S8-11 |
 | [`S11-04`](kanban/cards/S11-04.md) | "E2E suite green: scripts/e2e-stack.sh test (Playwright chromium)" | S8-12, S10-02 |
+| [`S11-05`](kanban/cards/S11-05.md) | "Coverage ratchet recorded (coverage.sh --record)" | S11-01, S11-02, S11-03 |
 
 ### Process — Repo mechanics
 

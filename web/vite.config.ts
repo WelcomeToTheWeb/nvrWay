@@ -46,5 +46,12 @@ export default defineConfig({
     // e2e/ is a browser suite with its own runner (`npm run test:e2e`), and
     // collecting it here fails on import with no global setup in play.
     include: ['src/**/*.test.{ts,tsx}'],
+    coverage: {
+      // The unit-coverage denominator is src/ only. The v8 provider's default
+      // include is every .ts in the package, so the Playwright specs in e2e/
+      // counted as 0% here — the ratchet would have punished adding browser
+      // tests, which is the opposite of what a floor is for.
+      include: ['src/**'],
+    },
   },
 });
