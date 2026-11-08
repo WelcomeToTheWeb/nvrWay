@@ -5,6 +5,9 @@ recording, YOLO detection with per-camera polygon zone rules, OIDC login with a
 break-glass local admin, a web console, and pluggable remote storage. Target
 scale 4–8 cameras on one server.
 
+Here to run it, not build it? Deploy below; the full guide is
+[`docs/installation.md`](docs/installation.md).
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -57,7 +60,30 @@ docs/         architecture, configuration, api, installation, kanban (how the bo
 kanban/       the work board: KANBAN.md (generated) + cards/ (one per deliverable) + seed.py
 ```
 
-## Quick Start
+## Deploy (self-host)
+
+The deployment file is `docker-compose.prod.yml` — published images, zero
+build sections, runs on a host with no source checkout.
+
+```bash
+git clone https://github.com/WelcomeToTheWeb/nvrWay.git && cd nvrWay
+cp .env.example .env    # fill what installation.md § 2–§ 3 name: four secrets
+                        # + the deployment-only table (incl. the admin password)
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Console on `:3000`, API on `:8080`, go2rtc on `:1984` — all LAN-facing by
+design; remote view is a reverse proxy or Tailscale, never a port forward.
+Images are `ghcr.io/welcometotheweb/nvr/{server,web,detector}`: `:latest` is
+the stable release, `:edge` follows `main` — pin a digest for a fleet that
+must not move on its own.
+
+[`docs/installation.md`](docs/installation.md) is the operator's guide:
+secrets and what each one costs, first login, camera setup, OIDC, storage
+tiers, retention math, TLS/Tailscale, the GPU overlay, backup/restore, and a
+troubleshooting section that names the first check to run.
+
+## Quick Start (development)
 
 ```bash
 scripts/dev.sh --demo             # seeds .env from .env.dev.example, compose up, demo camera
@@ -73,11 +99,12 @@ cd web && npm run typecheck && npm run test:run
 
 Console on `http://localhost:3000`, API on `:8080`, go2rtc on `:1984`.
 
-`scripts/` is the harness, and every command above is a script in it. The six
-scripts exist today as skeletons with their usage lines (card S0-04) — they
-print what they will do and exit 2, so a skeleton can never be mistaken for a
-green gate; `scripts/dev.sh`, `verify.sh`, `detect-smoke.sh`, `e2e-stack.sh`,
-`coverage.sh` and `fetch-fixture.sh` get their content in Step 9 (S9-08).
+`scripts/` is the harness, and every command above is a script in it:
+`dev.sh` runs the dev stack (`--demo` seeds a camera-free demo), `verify.sh`
+is the acceptance gate — nine observed passes, from a fresh heartbeat to a
+signed webhook — and the rest are named by their usage lines. CI
+(`.github/workflows/build.yml`) runs the same suites on every push and
+publishes the images on `v*` tags.
 
 Work is tracked one card per deliverable in [`KANBAN.md`](KANBAN.md) — cards in
 [`kanban/cards/`](kanban/cards) cite the plan step they implement and carry the
@@ -87,7 +114,7 @@ command that proves them; [`docs/kanban.md`](docs/kanban.md) is the convention.
 
 | Version | Scope |
 |---|---|
-| v1 | RTSP ingest, continuous/event/off recording, YOLO zones (`intrusion`, `loiter`), OIDC + local admin, console (live, events, cameras, settings), storage tiers + retention, signed webhooks |
+| v1 — released (`v1.0.0`) | RTSP ingest, continuous/event/off recording, YOLO zones (`intrusion`, `loiter`), OIDC + local admin, console (live, events, cameras, settings), storage tiers + retention, signed webhooks |
 | v2 | Face/LPR classes, seek on remote storage, ONVIF events/presets surfaced, multi-instance media ownership, HLS path where WebRTC cannot reach |
 
 ## Key Design Decisions
