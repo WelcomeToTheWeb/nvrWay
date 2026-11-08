@@ -121,6 +121,34 @@ if [ "$detector_rc" -ne 0 ] || [ -z "$detector_total" ]; then
     echo "coverage: dependency container logs:" >&2
     docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" \
         logs --tail=80 server go2rtc postgres >&2 || true
+    # Decisive probe: a psql client on the project network, authenticating over
+    # TCP with exactly the credentials the compose file states. If this passes
+    # while the server was rejected, the server's runtime env differs from the
+    # file; if it fails, postgres was initialised with something else.
+    echo "coverage: tcp auth probe (psql as the compose file's credentials):" >&2
+    docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" \
+        run --rm --no-deps --entrypoint sh postgres -c \
+        'psql "postgresql://nvr:***@postgres:5432/nvr?sslmode=disable" -c "select 1"' >&2 \
+        || echo "coverage: probe REJECTED (postgres runtime password differs)" >&2
+    # And the containers' actual runtime env, hashed so the dump is safe to
+    # paste: a mismatch between the server's DSN password and the postgres
+    # POSTGRES_PASSWORD is only visible here, never in the compose file.
+    echo "coverage: runtime env (users/DBs plain, passwords hashed):" >&2
+    docker compose version >&2 || true
+    for c in nvr-server nvr-postgres; do
+        docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null \
+            | grep -E '^(DATABASE_URL|POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB)=' \
+            | while IFS= read -r kv; do
+                k="${kv%%=*}"; v="${kv#*=}"
+                case "$k" in
+                    DATABASE_URL) v="${v#*://}"; v="${v#*:}"; v="${v%%@*}"; k=DSN_PASSWORD ;;
+                    POSTGRES_USER|POSTGRES_DB) ;;
+                    *) k="${k}_HASH" ; v="$(printf '%s' "$v" | sha256sum | cut -c1-16)" ;;
+                esac
+                [ "$k" = DSN_PASSWORD ] && v="$(printf '%s' "$v" | sha256sum | cut -c1-16)"
+                printf '  %s %s=%s\n' "$c" "$k" "$v"
+              done >&2 || true
+    done
     fail=1
     detector_total=""
 fi

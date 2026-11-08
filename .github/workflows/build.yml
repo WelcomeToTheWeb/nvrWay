@@ -128,6 +128,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        # The e2e server runs on the runner host and its recorder shells out
+        # to ffmpeg to cut segments from the sidecar's RTSP (media/recorder.go)
+        # — events.spec flips record_mode and waits for those segments. The
+        # 26.04 runner image ships no ffmpeg; without this the recorder
+        # supervises a failing process forever and the spec times out.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"

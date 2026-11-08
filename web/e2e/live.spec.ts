@@ -17,7 +17,9 @@ test('the seeded camera streams: the tile plays and the video has metadata', asy
   // Slug-exact: any other camera whose name starts with "E2E" (the cameras
   // spec's own camera did) must never be mistaken for the seeded one.
   const tile = page.locator('section').filter({ has: page.getByText(CAMERA_SLUG, { exact: true }) });
-  await expect(tile.locator('span', { hasText: CAMERA_SLUG })).toBeVisible();
+  // Tag-agnostic on purpose: the Metro Tiles pass moved the name from a
+  // span to an h2, and a selector that names the tag dies on every redesign.
+  await expect(tile.getByText(CAMERA_SLUG, { exact: true })).toBeVisible();
 
   const video = tile.locator('video').first();
   await expect(video).toBeVisible({ timeout: 30_000 });
