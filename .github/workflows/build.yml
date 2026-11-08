@@ -140,7 +140,9 @@ jobs:
       - name: Install browser
         run: cd web && npm ci && npm run test:e2e:install
       - name: Start the throwaway stack and run the specs
-        run: scripts/e2e-stack.sh test
+        # `test` runs the specs against a stack `restart` started — on a fresh
+        # runner there is no state file, so the CI invocation is both, in order.
+        run: scripts/e2e-stack.sh restart && scripts/e2e-stack.sh test
 
   # Job 4 of four: publish the three images. A `v*` tag publishes `:latest` and
   # `:<tag>`; a push to `main` publishes `:edge` and nothing else — the
