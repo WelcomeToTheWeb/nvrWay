@@ -14,8 +14,13 @@
 # Secrets come from the .env next to this file and nothing here has a dev
 # default: a production stack that boots with a random JWT_SECRET loses every
 # session on restart, and an empty WORKER_TOKEN silently disables the internal
-# API the detector lives on. `${VAR:?...}` is the compile-time gate — compose
-# refuses to even resolve the file, naming what is missing.
+# API the detector lives on. `${VAR:?}` is the compile-time gate — compose
+# refuses to even resolve the file, naming what is missing. The gates are
+# POSTGRES_PASSWORD, JWT_SECRET, WORKER_TOKEN and GO2RTC_PUBLIC_URL.
+# GO2RTC_USERNAME/GO2RTC_PASSWORD are deliberately NOT gated: the sidecar is
+# a trusted-LAN service by default (P-14) and its open API is what makes
+# browser live view work — see the go2rtc service below and
+# docs/installation.md § 11 for the authenticated opt-in.
 
 name: nvr
 
@@ -50,27 +55,35 @@ services:
   # (server/go2rtc/config.go -> POST /api/config) — the config file is never
   # hand-edited (S3-02, S3-05).
   #
-  # The command line closes the first-boot auth window the dev stack accepts:
-  # go2rtc initializes its basic-auth middleware at startup, so credentials
-  # that only arrive with the server's first push would leave the API open
-  # until the sidecar's next restart. The inline `-c` pairs (go2rtc's
-  # key=value config form) force the same credentials the renderer writes,
-  # from the very first start. Compose interpolates them from .env; they are
-  # visible in `docker inspect` exactly as the env pair is.
+  # The auth posture is P-14's: a trusted-LAN service. Unset
+  # GO2RTC_USERNAME/GO2RTC_PASSWORD (the default) leaves the API open on the
+  # LAN, which is what makes browser live view work — a browser cannot attach
+  # basic auth to a WebSocket. Set the pair and the sidecar boots
+  # authenticated from the very first start: the inline `-config` pairs
+  # (go2rtc's key=value config form) apply the same credentials the renderer
+  # writes, closing the window between boot and the server's first config
+  # push. With the pair set, live view works only through a reverse proxy
+  # that carries the auth for the browser — docs/installation.md § 11 has the
+  # recipe. `$$` escapes compose interpolation: these vars belong to the
+  # container's shell.
   go2rtc:
     image: ghcr.io/alexxit/go2rtc:master
     container_name: nvr-go2rtc
     restart: unless-stopped
-    command:
-      - go2rtc
-      - -config
-      - /config/go2rtc.yaml
-      - -config
-      - api.username=${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production}
-      - -config
-      - api.password=${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production}
     environment:
       TZ: UTC
+      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
+      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$GO2RTC_USERNAME" ] && [ -n "$$GO2RTC_PASSWORD" ]; then
+          exec go2rtc -config /config/go2rtc.yaml \
+            -config api.username="$$GO2RTC_USERNAME" \
+            -config api.password="$$GO2RTC_PASSWORD"
+        fi
+        exec go2rtc -config /config/go2rtc.yaml
     ports:
       - "1984:1984"
       - "8554:8554"
@@ -122,8 +135,8 @@ services:
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required in production: an empty one is random per boot, so every restart logs everyone out}"
       GO2RTC_URL: "http://go2rtc:1984"
       GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
-      GO2RTC_USERNAME: ${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production}
-      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production}
+      # GO2RTC_USERNAME/GO2RTC_PASSWORD arrive through env_file when set; the
+      # server's own empty default is the open-API (trusted-LAN) posture.
       # Required, no default: the console dials go2rtc directly for live view,
       # so the operator must say which origin the browser can reach. A guessed
       # localhost URL is a live view that works on the server and nowhere else.
@@ -163,9 +176,10 @@ services:
       NVR_WORKER_TOKEN: "${WORKER_TOKEN:?WORKER_TOKEN is required in production: an empty one disables the internal API the detector lives on}"
       DET_PROVIDERS: "${DET_PROVIDERS:-CPUExecutionProvider}"
       # The mjpeg tap is part of go2rtc's API, which enforces the basic auth
-      # the server pushes (S9-04); the detector needs the same credentials.
-      GO2RTC_USERNAME: "${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production: go2rtc's API is authenticated}"
-      GO2RTC_PASSWORD: "${GO2RTC_PASSWORD:?GO2RTC_PASSWORD is required in production: go2rtc's API is authenticated}"
+      # the server pushes (S9-04) when the operator set the pair; unset is
+      # the open-API default and the tap needs no credentials then.
+      GO2RTC_USERNAME: "${GO2RTC_USERNAME:-}"
+      GO2RTC_PASSWORD: "${GO2RTC_PASSWORD:-}"
       TZ: UTC
     networks:
       - nvr_net

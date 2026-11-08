@@ -68,6 +68,13 @@ What each one *not* being set costs:
 - **`WORKER_TOKEN` empty** — the internal API is **off**, not open:
   `/api/internal/*` answers `403 {"error":"internal api disabled"}`. No
   detection, no heartbeat, no events. The camera still records.
+- **`GO2RTC_USERNAME`/`GO2RTC_PASSWORD` unset** — the shipped default, and
+  the posture the sidecar is designed for (P-14): its API is open on the
+  trusted LAN, which is what makes browser live view work — a browser cannot
+  attach basic auth to a WebSocket. Set both only when you will reverse-proxy
+  the sidecar (§ 11): the stack then boots authenticated from the very first
+  start, and live view works only through that proxy. The full trade is
+  `docs/configuration.md` § *The sidecar API is a trusted-LAN service (P-14)*.
 
 ## 3. Write the `.env`
 
@@ -87,9 +94,11 @@ install:
 | Variable | Why it is deployment-only |
 |---|---|
 | `POSTGRES_PASSWORD` | **required in prod compose** (compose refuses to resolve without it): it sets the database password *and* builds the server's container DSN from it — the `.env` `DATABASE_URL` line is for the non-container paths only |
+| `BOOTSTRAP_ADMIN_PASSWORD` | **set it before first boot**: `.env.example` ships it empty, and empty creates no local admin — with OIDC not yet configured, that is an installation with no way in (§ 5) |
 | `DATA_DIR` | the media tree; make it a volume you back up |
 | `WEB_URL` | the origin the console is served from — the WS origin guard and the OIDC redirect URI are both built from it |
 | `GO2RTC_PUBLIC_URL` | **required in prod compose** (compose refuses to start without it): it is the address the *browser* dials for live view, and the server cannot guess it from inside the container |
+| `GO2RTC_USERNAME` / `GO2RTC_PASSWORD` | **optional, unset by default** (P-14): the open sidecar API is what makes live view work from the browser. Set both only to put the sidecar behind a reverse proxy that carries the auth (§ 11) |
 | `PUBLIC_BASE_URL` | the address a webhook *receiver* dials; empty means the payload says `localhost` and every remote integration 404s |
 
 ## 4. Start the stack
@@ -108,7 +117,7 @@ What answers where:
 |---|---|---|
 | `:3000` | console (nginx; proxies `/api` and `/ws` to the server) | the LAN; a WAN only behind TLS + auth (§ 11) |
 | `:8080` | server API + `/ws` | the LAN; never a bare WAN socket — it is plain HTTP |
-| `:1984` | go2rtc API (live view's `/api/ws`) | the LAN only — it is a **trusted-LAN service** (P-14): the browser cannot attach auth to a WebSocket, so this API is unauthenticated by design |
+| `:1984` | go2rtc API (live view's `/api/ws`) | the LAN only — it is a **trusted-LAN service** (P-14): the browser cannot attach auth to a WebSocket, so this API is unauthenticated by design; set `GO2RTC_USERNAME`/`GO2RTC_PASSWORD` to close it and proxy the sidecar (§ 11) — live view then works only through the proxy |
 | `:8554` / `:8555` | go2rtc RTSP / WebRTC | the LAN; cameras and browsers dial these directly |
 
 Nothing here needs to face a WAN. Remote view is a reverse proxy or a
@@ -117,11 +126,12 @@ Tailscale interface (§ 11), not a port forward.
 ## 5. First login: the break-glass admin
 
 `BOOTSTRAP_ADMIN_USER` / `BOOTSTRAP_ADMIN_PASSWORD` seed one local admin on
-first boot (S2-03). The password is **the value you set in `.env`** — it is
-never generated for you, so there is nothing to go find in a log. The account
-exists so OIDC misconfiguration cannot lock you out of your own NVR: its
-password door is never closed by a link or a role edit, and deleting the last
-admin is refused.
+first boot (S2-03). **Set the password before first boot** — `.env.example`
+ships it empty, and empty creates no account. The password is **the value you
+set in `.env`** — it is never generated for you, so there is nothing to go
+find in a log. The account exists so OIDC misconfiguration cannot lock you
+out of your own NVR: its password door is never closed by a link or a role
+edit, and deleting the last admin is refused.
 
 To stop it from being created: leave `BOOTSTRAP_ADMIN_PASSWORD` empty. An
 installation with working OIDC and no bootstrap password logs in only through
@@ -300,6 +310,39 @@ the proxy. What must change for live view to work remotely:
 reachable too — if ICE cannot connect, the tile says `unreachable` and the
 REST side keeps working, which is the diagnostic that tells you it is the
 media path, not the console.
+
+### Closing the sidecar API (optional, P-14)
+
+The default leaves the sidecar's API open on the LAN (§ 4). To close it, set
+`GO2RTC_USERNAME`/`GO2RTC_PASSWORD` in `.env` and let the proxy — not the
+browser — carry the auth. The console dials `${GO2RTC_PUBLIC_URL}/api/ws`
+and a path prefix is preserved, so a same-origin mount works:
+
+```nginx
+# console origin: https://cam.example.com
+# sidecar mounted under https://cam.example.com/go2rtc
+location /go2rtc/api/ws {                    # live view's WebSocket
+    proxy_pass http://127.0.0.1:1984/api/ws;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $http_host;
+    proxy_set_header Authorization "Basic <base64 of user:password>";
+    proxy_read_timeout 3600s;                # the WS is long-lived
+}
+location /go2rtc/ {                          # the rest of the sidecar API
+    proxy_pass http://127.0.0.1:1984/;
+    proxy_set_header Host $http_host;
+    proxy_set_header Authorization "Basic <base64 of user:password>";
+}
+```
+
+Then set `GO2RTC_PUBLIC_URL=https://cam.example.com/go2rtc`. What the proxy
+cannot do is carry WebRTC media: `:8555` (TCP and UDP) must still be
+reachable from the browser — on the LAN it is; remotely, that is what
+Tailscale is for. The pair is also what the server and the detector present
+for config writes and the mjpeg tap, so set it in `.env` once and the whole
+stack agrees.
 
 ## 12. GPU overlay (shipped, verified on a GPU host)
 
