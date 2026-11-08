@@ -66,7 +66,7 @@ export default function AuditPage() {
   if (!hasRole('admin')) {
     return (
       <main className="p-6">
-        <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Audit</h1>
+        <h1 className="text-3xl font-light tracking-cap text-text-primary">Audit</h1>
         <p className="mt-4 text-sm text-text-secondary">
           The ledger belongs to an admin. It carries every name that knocked and every door the
           server refused — which is not a thing to hand a role that did not write it.
@@ -94,7 +94,7 @@ export default function AuditPage() {
 
   return (
     <main className="p-6">
-      <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Audit</h1>
+      <h1 className="text-3xl font-light tracking-cap text-text-primary">Audit</h1>
 
       <FilterBar filters={filters} onApply={applyFilters} />
 
@@ -178,7 +178,7 @@ function FilterBar({
     >
       {(['actor', 'action', 'target_id'] as const).map((key) => (
         <label key={key} className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">{key}</span>
+          <span className="font-mono text-[10px] text-text-muted">{key}</span>
           <input
             value={draft[key] ?? ''}
             onChange={(event) => set(key, event.target.value)}
@@ -187,7 +187,7 @@ function FilterBar({
         </label>
       ))}
       <label className="block">
-        <span className="font-mono text-[10px] uppercase text-text-muted">outcome</span>
+        <span className="font-mono text-[10px] text-text-muted">outcome</span>
         <select
           value={draft.outcome ?? ''}
           onChange={(event) => set('outcome', event.target.value)}
@@ -203,7 +203,7 @@ function FilterBar({
       </label>
       <button
         type="submit"
-        className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+        className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent"
       >
         filter
       </button>
@@ -228,7 +228,7 @@ function AuditRow({ row }: { row: AuditView }) {
     <li className="border-b border-rule px-3 py-2 last:border-b-0">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <span className="font-mono text-xs text-text-muted">{row.created_at}</span>
-        <span className="font-cap text-sm uppercase tracking-cap text-text-primary">
+        <span className="text-sm font-semibold tracking-cap text-text-primary">
           {row.actor_username || '(no account)'}
         </span>
         <span className="font-mono text-xs text-text-muted">

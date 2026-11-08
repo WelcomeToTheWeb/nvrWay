@@ -40,6 +40,15 @@ web/coverage/
 /nvr_cfg2.json
 /spec.json
 
+# Impeccable design-pass working state: direction-roll sketches, review
+# captures with their provenance, hook config, and the live-mode config.
+# Per-machine session artifacts of the agent doing the design work, not product
+# source — the design record that ships is DESIGN.md at the repo root, which is
+# committed. Anchored per the P-05 reason; the web/ line covers the live-mode
+# config under the frontend.
+/.impeccable/
+web/.impeccable/
+
 # The coding agent's own session board, written by the DeepSeek Harness kanban
 # plugin into the repo root. It is per-machine working state, not the product's
 # board: nvrWay's board is kanban/cards/*.md (source of truth) rendered to

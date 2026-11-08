@@ -30,7 +30,7 @@
  * `RequireRole` is the gate — the pages still refuse on their own, so a
  * deep link to `/settings` meets the same sentence as the hidden tab.
  */
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { useAuth } from './auth/context';
@@ -72,22 +72,28 @@ export default function App() {
   return (
     <div className="min-h-screen">
       {isAuthenticated ? (
-        <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-rule bg-bg-card px-6 py-3">
-          <span className="font-cap text-lg uppercase tracking-cap text-text-primary">nvrWay</span>
-          <nav className="flex flex-wrap gap-x-4 gap-y-1" aria-label="Console">
+        <header className="flex flex-wrap items-baseline gap-x-8 gap-y-2 border-b border-rule bg-bg-card px-6 py-4">
+          <span className="font-light text-4xl tracking-tight text-text-primary">nvrWay</span>
+          {/* On the phone the actions ride the wordmark row and the nav takes
+              the full second row — five tiles fit one line at phone measure,
+              so the wall starts higher. On a desk it stays one line. */}
+          <div className="ml-auto flex items-baseline gap-4 md:order-3">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="px-3 py-2 text-sm font-semibold tracking-cap text-text-secondary hover:bg-bg-secondary hover:text-text-primary"
+            >
+              sign out
+            </button>
+          </div>
+          <nav className="flex w-full flex-wrap gap-x-1 gap-y-1 md:order-2 md:w-auto" aria-label="Console">
             <NavTab to="/live">Live</NavTab>
             <NavTab to="/events">Events</NavTab>
             <NavTab to="/cameras">Cameras</NavTab>
             {hasRole('admin') ? <NavTab to="/settings">Settings</NavTab> : null}
             {hasRole('admin') ? <NavTab to="/audit">Audit</NavTab> : null}
           </nav>
-          <button
-            type="button"
-            onClick={() => void logout()}
-            className="ml-auto font-mono text-xs text-text-secondary underline"
-          >
-            sign out
-          </button>
         </header>
       ) : null}
 
@@ -112,18 +118,49 @@ export default function App() {
   );
 }
 
+/** Nav tabs are tiles: the active route sits in the live field, cyan ink on
+ * cyan, the way a destination on the concourse is lit when you are on it. */
 function NavTab({ to, children }: { to: string; children: ReactNode }) {
   return (
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `font-cap text-sm uppercase tracking-cap ${
-          isActive ? 'text-accent' : 'text-text-secondary hover:text-text-primary'
+        `px-2 py-1.5 text-xs font-semibold tracking-cap md:px-3 md:py-2 md:text-sm ${
+          isActive
+            ? 'bg-accent-light text-[var(--field-cyan-ink)]'
+            : 'text-text-secondary hover:bg-bg-secondary hover:text-text-primary'
         }`
       }
     >
       {children}
     </NavLink>
+  );
+}
+
+/** Day and night, honestly equal: the button names the world it will switch
+ * TO, not the one you are in, so the label is the action. */
+function ThemeToggle() {
+  const [dark, setDark] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
+  );
+  return (
+    <button
+      type="button"
+      aria-label={`Switch to ${dark ? 'day' : 'night'} theme`}
+      onClick={() => {
+        const next = !dark;
+        setDark(next);
+        document.documentElement.classList.toggle('dark', next);
+        try {
+          localStorage.setItem('nvr-theme', next ? 'night' : 'day');
+        } catch {
+          /* a private-mode browser keeps the choice for this tab only */
+        }
+      }}
+      className="border border-rule-strong bg-bg-secondary px-3 py-2 text-sm font-semibold tracking-cap text-text-primary"
+    >
+      {dark ? 'day' : 'night'}
+    </button>
   );
 }
 
@@ -136,16 +173,27 @@ function FeedBanner() {
   const status = useRealtime((state) => state.status);
   const reason = useRealtime((state) => state.reason);
 
+  // The degraded field: amber for "retrying", red for "go look". The strip is
+  // the field itself — a Metro console states trouble as a colour band, not
+  // as a line of console log.
   if (status === 'stale') {
     return (
-      <p role="status" className="border-b border-rule bg-bg-card px-6 py-1.5 font-mono text-xs text-status-warning">
+      <p
+        role="status"
+        className="px-6 py-1.5 text-sm font-semibold"
+        style={{ background: 'var(--field-amber)', color: 'var(--field-amber-ink)' }}
+      >
         live feed: {reason ?? 'the feed dropped; retrying'}
       </p>
     );
   }
   if (status === 'refused') {
     return (
-      <p role="alert" className="border-b border-rule bg-bg-card px-6 py-1.5 font-mono text-xs text-status-error">
+      <p
+        role="alert"
+        className="px-6 py-1.5 text-sm font-semibold"
+        style={{ background: 'var(--field-red)', color: 'var(--field-red-ink)' }}
+      >
         live feed: {reason ?? 'the feed has stopped opening'}
       </p>
     );

@@ -107,7 +107,7 @@ export default function CamerasPage() {
 
   return (
     <main className="p-6">
-      <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Cameras</h1>
+      <h1 className="text-3xl font-light tracking-cap text-text-primary">Cameras</h1>
 
       {page.kind === 'reading' ? (
         <p className="mt-4 text-sm text-text-secondary">Reading the camera rows.</p>
@@ -158,7 +158,7 @@ function CameraRow({ camera }: { camera: CameraView }) {
         to={`/cameras/${camera.id}`}
         className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2 hover:bg-bg-secondary"
       >
-        <span className="font-cap text-sm uppercase tracking-cap text-text-primary">
+        <span className="text-sm font-semibold tracking-cap text-text-primary">
           {camera.name || camera.slug}
         </span>
         <span className="font-mono text-xs text-text-secondary">{camera.slug}</span>
@@ -173,7 +173,7 @@ function CameraRow({ camera }: { camera: CameraView }) {
           <span className="font-mono text-xs text-status-warning">inactive</span>
         ) : null}
         <span
-          className={`ml-auto font-mono text-xs uppercase tracking-cap ${
+          className={`ml-auto font-mono text-xs tracking-cap ${
             status ? (status.online ? 'text-status-online' : 'text-status-offline') : 'text-text-muted'
           }`}
         >
@@ -233,7 +233,7 @@ function CameraEditor({
   return (
     <section className="mt-4 border border-rule bg-bg-card p-4">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-cap text-lg uppercase tracking-cap text-text-primary">
+        <h2 className="text-xl font-semibold tracking-cap text-text-primary">
           {camera.name || camera.slug}
         </h2>
         <button
@@ -250,7 +250,7 @@ function CameraEditor({
 
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">name</span>
+          <span className="font-mono text-[10px] text-text-muted">name</span>
           <input
             value={draft.name ?? ''}
             disabled={!canWrite}
@@ -259,7 +259,7 @@ function CameraEditor({
           />
         </label>
         <label className="col-span-2 block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">
+          <span className="font-mono text-[10px] text-text-muted">
             source uri (rtsp://…, read by the media host)
           </span>
           <input
@@ -270,7 +270,7 @@ function CameraEditor({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">record mode</span>
+          <span className="font-mono text-[10px] text-text-muted">record mode</span>
           <select
             value={draft.record_mode ?? 'continuous'}
             disabled={!canWrite}
@@ -303,7 +303,7 @@ function CameraEditor({
           active
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">detection fps</span>
+          <span className="font-mono text-[10px] text-text-muted">detection fps</span>
           <input
             type="number"
             min={0}
@@ -314,7 +314,7 @@ function CameraEditor({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">sensitivity</span>
+          <span className="font-mono text-[10px] text-text-muted">sensitivity</span>
           <input
             type="number"
             min={0}
@@ -327,7 +327,7 @@ function CameraEditor({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">min area ratio</span>
+          <span className="font-mono text-[10px] text-text-muted">min area ratio</span>
           <input
             type="number"
             min={0}
@@ -340,7 +340,7 @@ function CameraEditor({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">local days</span>
+          <span className="font-mono text-[10px] text-text-muted">local days</span>
           <input
             type="number"
             min={0}
@@ -351,7 +351,7 @@ function CameraEditor({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">remote days</span>
+          <span className="font-mono text-[10px] text-text-muted">remote days</span>
           <input
             type="number"
             min={0}
@@ -369,7 +369,7 @@ function CameraEditor({
             type="button"
             onClick={() => void save()}
             disabled={saving || !dirty}
-            className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+            className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
           >
             {saving ? 'saving' : dirty ? 'save row' : 'saved'}
           </button>
@@ -448,7 +448,7 @@ function DeleteCamera({ camera, onDeleted }: { camera: CameraView; onDeleted(): 
 
   return (
     <div className="mt-6 border-t border-rule pt-4">
-      <h3 className="font-cap text-sm uppercase tracking-cap text-status-error">Danger zone</h3>
+      <h3 className="text-sm font-semibold tracking-cap text-status-error">Danger zone</h3>
 
       {summary === null ? (
         <>
@@ -459,7 +459,7 @@ function DeleteCamera({ camera, onDeleted }: { camera: CameraView; onDeleted(): 
           <button
             type="button"
             onClick={ask}
-            className="mt-2 border border-status-error px-3 py-1 font-cap text-xs uppercase tracking-cap text-status-error"
+            className="mt-2 border border-status-error px-3 py-1 text-xs font-semibold tracking-cap text-status-error"
           >
             delete this camera
           </button>
@@ -512,7 +512,7 @@ function DeleteCamera({ camera, onDeleted }: { camera: CameraView; onDeleted(): 
               type="button"
               onClick={() => setSummary(null)}
               disabled={deleting}
-              className="border border-rule px-3 py-1 font-cap text-xs uppercase tracking-cap text-text-secondary"
+              className="border border-rule px-3 py-1 text-xs font-semibold tracking-cap text-text-secondary"
             >
               keep it
             </button>
@@ -520,7 +520,7 @@ function DeleteCamera({ camera, onDeleted }: { camera: CameraView; onDeleted(): 
               type="button"
               onClick={() => void confirm()}
               disabled={deleting}
-              className="border border-status-error bg-status-error px-3 py-1 font-cap text-xs uppercase tracking-cap text-bg-primary disabled:opacity-50"
+              className="border border-status-error bg-status-error px-3 py-1 text-xs font-semibold tracking-cap text-bg-primary disabled:opacity-50"
             >
               {deleting ? 'deleting' : `delete ${camera.slug}`}
             </button>
@@ -571,10 +571,10 @@ function NewCameraForm({ onCreated }: { onCreated(): void }) {
         void create();
       }}
     >
-      <h2 className="font-cap text-sm uppercase tracking-cap text-text-primary">Add a camera</h2>
+      <h2 className="text-sm font-semibold tracking-cap text-text-primary">Add a camera</h2>
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">slug</span>
+          <span className="font-mono text-[10px] text-text-muted">slug</span>
           <input
             value={slug}
             onChange={(event) => setSlug(event.target.value)}
@@ -583,7 +583,7 @@ function NewCameraForm({ onCreated }: { onCreated(): void }) {
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">name</span>
+          <span className="font-mono text-[10px] text-text-muted">name</span>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -592,7 +592,7 @@ function NewCameraForm({ onCreated }: { onCreated(): void }) {
           />
         </label>
         <label className="block md:col-span-2">
-          <span className="font-mono text-[10px] uppercase text-text-muted">source uri</span>
+          <span className="font-mono text-[10px] text-text-muted">source uri</span>
           <input
             value={sourceUri}
             onChange={(event) => setSourceUri(event.target.value)}
@@ -601,7 +601,7 @@ function NewCameraForm({ onCreated }: { onCreated(): void }) {
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">record mode</span>
+          <span className="font-mono text-[10px] text-text-muted">record mode</span>
           <select
             value={recordMode}
             onChange={(event) => setRecordMode(event.target.value)}
@@ -619,7 +619,7 @@ function NewCameraForm({ onCreated }: { onCreated(): void }) {
         <button
           type="submit"
           disabled={saving || slug.trim() === '' || sourceUri.trim() === ''}
-          className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+          className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
         >
           {saving ? 'adding' : 'add camera'}
         </button>

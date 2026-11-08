@@ -328,13 +328,13 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
         {event && state.kind === 'ready' ? (
           <>
             <header className="flex items-baseline justify-between gap-3">
-              <h2 className="font-cap text-xl uppercase tracking-cap text-text-primary">
+              <h2 className="text-2xl font-light tracking-cap text-text-primary">
                 {event.camera_slug}
               </h2>
               <button
                 type="button"
                 onClick={onClose}
-                className="border border-rule px-2 font-cap text-xs uppercase tracking-cap text-text-secondary hover:border-accent"
+                className="border border-rule px-2 text-xs font-semibold tracking-cap text-text-secondary hover:border-accent"
               >
                 close
               </button>
@@ -372,7 +372,7 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
             </div>
 
             <div className="mt-4">
-              <h3 className="font-cap text-sm uppercase tracking-cap text-text-secondary">Clip</h3>
+              <h3 className="text-sm font-semibold tracking-cap text-text-secondary">Clip</h3>
               <div className="mt-2">
                 <Clip event={event} />
               </div>
@@ -384,7 +384,7 @@ export default function EventDetail({ id, onClose }: { id: string; onClose: () =
             </div>
 
             <div className="mt-4">
-              <h3 className="font-cap text-sm uppercase tracking-cap text-text-secondary">Footage</h3>
+              <h3 className="text-sm font-semibold tracking-cap text-text-secondary">Footage</h3>
               <div className="mt-2">
                 {manifest ? <SegmentStrip {...manifest} roll={roll} /> : <p className="text-sm text-text-secondary">Reading the manifest.</p>}
               </div>

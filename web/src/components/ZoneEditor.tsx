@@ -448,7 +448,7 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
   return (
     <section className="border border-rule bg-bg-card p-4" onKeyDown={onKeyDown}>
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="font-cap text-sm uppercase tracking-cap text-text-primary">
+        <h3 className="text-sm font-semibold tracking-cap text-text-primary">
           Detection zones
         </h3>
         <span className="font-mono text-xs text-text-muted">
@@ -473,7 +473,7 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
             key={zone.id}
             type="button"
             onClick={() => setSelected(zone.id)}
-            className={`absolute -translate-x-0 -translate-y-full border px-1 font-mono text-[10px] uppercase tracking-cap ${
+            className={`absolute -translate-x-0 -translate-y-full border px-1 font-mono text-[10px] tracking-cap ${
               zone.id === selected
                 ? 'border-accent bg-bg-card text-accent'
                 : 'border-rule bg-bg-card text-text-secondary'
@@ -501,14 +501,14 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
               <button
                 type="button"
                 onClick={closeDraft}
-                className="border border-accent px-2 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+                className="border border-accent px-2 py-1 text-xs font-semibold tracking-cap text-accent"
               >
                 close shape
               </button>
               <button
                 type="button"
                 onClick={cancelDraft}
-                className="border border-rule px-2 py-1 font-cap text-xs uppercase tracking-cap text-text-secondary"
+                className="border border-rule px-2 py-1 text-xs font-semibold tracking-cap text-text-secondary"
               >
                 cancel
               </button>
@@ -518,7 +518,7 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
             <button
               type="button"
               onClick={startDraft}
-              className="border border-accent px-2 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+              className="border border-accent px-2 py-1 text-xs font-semibold tracking-cap text-accent"
             >
               new zone
             </button>
@@ -532,7 +532,7 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
         <button
           type="button"
           onClick={() => setFrameNonce(Date.now())}
-          className="border border-rule px-2 py-1 font-cap text-xs uppercase tracking-cap text-text-secondary"
+          className="border border-rule px-2 py-1 text-xs font-semibold tracking-cap text-text-secondary"
         >
           new frame
         </button>
@@ -542,7 +542,7 @@ export default function ZoneEditor({ camera, canWrite, onSaved }: ZoneEditorProp
             type="button"
             onClick={() => void save()}
             disabled={saving || !dirty}
-            className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+            className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
           >
             {saving ? 'saving' : dirty ? 'save zones' : 'saved'}
           </button>
@@ -660,7 +660,7 @@ function ZoneRow({
 
       <div className="mt-2 grid grid-cols-2 gap-2 md:grid-cols-4">
         <label className="col-span-2 block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">name</span>
+          <span className="font-mono text-[10px] text-text-muted">name</span>
           <input
             value={zone.name}
             disabled={!canWrite}
@@ -669,7 +669,7 @@ function ZoneRow({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">rule</span>
+          <span className="font-mono text-[10px] text-text-muted">rule</span>
           <select
             value={zone.rule}
             disabled={!canWrite}
@@ -684,7 +684,7 @@ function ZoneRow({
           </select>
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">severity</span>
+          <span className="font-mono text-[10px] text-text-muted">severity</span>
           <select
             value={zone.severity}
             disabled={!canWrite}
@@ -699,7 +699,7 @@ function ZoneRow({
           </select>
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">dwell s</span>
+          <span className="font-mono text-[10px] text-text-muted">dwell s</span>
           <input
             type="number"
             min={1}
@@ -710,7 +710,7 @@ function ZoneRow({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">min conf</span>
+          <span className="font-mono text-[10px] text-text-muted">min conf</span>
           <input
             type="number"
             min={0}
@@ -723,7 +723,7 @@ function ZoneRow({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">min area</span>
+          <span className="font-mono text-[10px] text-text-muted">min area</span>
           <input
             type="number"
             min={0}
@@ -736,7 +736,7 @@ function ZoneRow({
           />
         </label>
         <div className="col-span-2 md:col-span-1">
-          <span className="font-mono text-[10px] uppercase text-text-muted">classes</span>
+          <span className="font-mono text-[10px] text-text-muted">classes</span>
           <div className="mt-0.5 flex flex-wrap gap-1">
             {DETECTION_CLASSES.map((cls) => {
               const on = zone.classes.includes(cls);

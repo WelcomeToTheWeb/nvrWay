@@ -86,7 +86,7 @@ export default function SettingsPage() {
   if (!hasRole('admin')) {
     return (
       <main className="p-6">
-        <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Settings</h1>
+        <h1 className="text-3xl font-light tracking-cap text-text-primary">Settings</h1>
         <p className="mt-4 text-sm text-text-secondary">
           Settings belong to an admin. Your role can watch the wall and read the events; the
           destinations, the doors and the windows are not yours to change.
@@ -97,7 +97,7 @@ export default function SettingsPage() {
 
   return (
     <main className="p-6">
-      <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Settings</h1>
+      <h1 className="text-3xl font-light tracking-cap text-text-primary">Settings</h1>
 
       <nav className="mt-4 flex gap-1 border-b border-rule" aria-label="Settings sections">
         {TABS.map((entry) => (
@@ -106,9 +106,9 @@ export default function SettingsPage() {
             type="button"
             onClick={() => setParams({ tab: entry.id })}
             aria-current={tab === entry.id ? 'page' : undefined}
-            className={`px-3 py-1.5 font-cap text-xs uppercase tracking-cap ${
+            className={`px-3 py-1.5 text-xs font-semibold tracking-cap ${
               tab === entry.id
-                ? 'border border-b-0 border-rule bg-bg-card text-text-primary'
+                ? 'bg-accent-light text-[var(--field-cyan-ink)]'
                 : 'text-text-secondary hover:text-text-primary'
             }`}
           >
@@ -149,7 +149,7 @@ function QueueStrip({ rest }: { rest: QueueCounts | null }) {
 
   return (
     <section className="mt-4 border border-rule bg-bg-card p-3" aria-label="Upload queue">
-      <h2 className="font-cap text-sm uppercase tracking-cap text-text-primary">Upload queue</h2>
+      <h2 className="text-sm font-semibold tracking-cap text-text-primary">Upload queue</h2>
       {counts ? (
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 font-mono text-xs text-text-secondary">
           <span>pending {counts.pending}</span>
@@ -330,7 +330,7 @@ function StorageTab() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="mt-4 border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+          className="mt-4 border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent"
         >
           add a backend
         </button>
@@ -369,7 +369,7 @@ function StorageRow({
   return (
     <li className="border-b border-rule px-3 py-2 last:border-b-0">
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span className="font-cap text-sm uppercase tracking-cap text-text-primary">
+        <span className="text-sm font-semibold tracking-cap text-text-primary">
           {backend.name}
         </span>
         <span className="font-mono text-xs text-text-muted">{backend.kind}</span>
@@ -536,7 +536,7 @@ function BackendForm({
         void save();
       }}
     >
-      <h3 className="font-cap text-sm uppercase tracking-cap text-text-primary">
+      <h3 className="text-sm font-semibold tracking-cap text-text-primary">
         {backend ? `Edit ${backend.name}` : 'Add a backend'}
       </h3>
       {backend ? (
@@ -545,7 +545,7 @@ function BackendForm({
         </p>
       ) : (
         <label className="mt-2 block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">kind</span>
+          <span className="font-mono text-[10px] text-text-muted">kind</span>
           <select
             value={kind}
             onChange={(event) => pickKind(event.target.value as StorageKind)}
@@ -565,7 +565,7 @@ function BackendForm({
           field === 'name' || field === 'endpoint' || field === 'region' || field === 'bucket' ||
           field === 'prefix' || field === 'root_path' || field === 'username' ? (
             <label key={field} className="block">
-              <span className="font-mono text-[10px] uppercase text-text-muted">{field}</span>
+              <span className="font-mono text-[10px] text-text-muted">{field}</span>
               <input
                 value={String(draft[field] ?? '')}
                 onChange={(event) => set(field as string, event.target.value)}
@@ -590,7 +590,7 @@ function BackendForm({
           const isSet = backend ? Boolean(setFlag ? backend[setFlag] : false) : false;
           return (
             <div key={key} className="block">
-              <span className="font-mono text-[10px] uppercase text-text-muted">
+              <span className="font-mono text-[10px] text-text-muted">
                 {key} — {isSet ? 'set' : 'unset'}
               </span>
               <div className="mt-0.5 flex items-center gap-2">
@@ -620,7 +620,7 @@ function BackendForm({
         <button
           type="submit"
           disabled={saving}
-          className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+          className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
         >
           {saving ? 'saving' : backend ? 'save backend' : 'add backend'}
         </button>
@@ -699,7 +699,7 @@ function AccessTab() {
           {providers.map((provider) => (
             <li key={provider.id} className="border-b border-rule px-3 py-2 last:border-b-0">
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span className="font-cap text-sm uppercase tracking-cap text-text-primary">
+                <span className="text-sm font-semibold tracking-cap text-text-primary">
                   {provider.name}
                 </span>
                 <span className="font-mono text-xs text-text-secondary">{provider.issuer}</span>
@@ -756,7 +756,7 @@ function AccessTab() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="mt-4 border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+          className="mt-4 border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent"
         >
           add a provider
         </button>
@@ -832,7 +832,7 @@ function ProviderForm({
         void save();
       }}
     >
-      <h3 className="font-cap text-sm uppercase tracking-cap text-text-primary">
+      <h3 className="text-sm font-semibold tracking-cap text-text-primary">
         {provider ? `Edit ${provider.name}` : 'Add a provider'}
       </h3>
       <p className="mt-1 font-mono text-xs text-text-muted">
@@ -841,7 +841,7 @@ function ProviderForm({
 
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">name</span>
+          <span className="font-mono text-[10px] text-text-muted">name</span>
           <input
             value={draft.name ?? ''}
             onChange={(event) => set('name', event.target.value)}
@@ -849,7 +849,7 @@ function ProviderForm({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">issuer</span>
+          <span className="font-mono text-[10px] text-text-muted">issuer</span>
           <input
             value={draft.issuer ?? ''}
             onChange={(event) => set('issuer', event.target.value)}
@@ -858,7 +858,7 @@ function ProviderForm({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">client id</span>
+          <span className="font-mono text-[10px] text-text-muted">client id</span>
           <input
             value={draft.client_id ?? ''}
             onChange={(event) => set('client_id', event.target.value)}
@@ -866,7 +866,7 @@ function ProviderForm({
           />
         </label>
         <div className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">
+          <span className="font-mono text-[10px] text-text-muted">
             client secret — {provider ? (provider.secret_set ? 'set' : 'unset') : 'unset'}
           </span>
           <input
@@ -878,7 +878,7 @@ function ProviderForm({
           />
         </div>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">link policy</span>
+          <span className="font-mono text-[10px] text-text-muted">link policy</span>
           <select
             value={draft.link_policy ?? 'pending'}
             onChange={(event) => set('link_policy', event.target.value)}
@@ -908,7 +908,7 @@ function ProviderForm({
         <button
           type="submit"
           disabled={saving}
-          className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+          className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
         >
           {saving ? 'saving' : provider ? 'save provider' : 'add provider'}
         </button>
@@ -987,7 +987,7 @@ function WebhooksTab() {
           {hooks.map((hook) => (
             <li key={hook.id} className="border-b border-rule px-3 py-2 last:border-b-0">
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                <span className="font-cap text-sm uppercase tracking-cap text-text-primary">
+                <span className="text-sm font-semibold tracking-cap text-text-primary">
                   {hook.name}
                 </span>
                 <span className="font-mono text-xs text-text-secondary">{hook.url}</span>
@@ -1058,7 +1058,7 @@ function WebhooksTab() {
         <button
           type="button"
           onClick={() => setEditing('new')}
-          className="mt-4 border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+          className="mt-4 border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent"
         >
           add a webhook
         </button>
@@ -1161,13 +1161,13 @@ function WebhookForm({
         void save();
       }}
     >
-      <h3 className="font-cap text-sm uppercase tracking-cap text-text-primary">
+      <h3 className="text-sm font-semibold tracking-cap text-text-primary">
         {hook ? `Edit ${hook.name}` : 'Add a webhook'}
       </h3>
 
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">name</span>
+          <span className="font-mono text-[10px] text-text-muted">name</span>
           <input
             value={draft.name ?? ''}
             onChange={(event) => set('name', event.target.value)}
@@ -1175,7 +1175,7 @@ function WebhookForm({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">url (http or https)</span>
+          <span className="font-mono text-[10px] text-text-muted">url (http or https)</span>
           <input
             value={draft.url ?? ''}
             onChange={(event) => set('url', event.target.value)}
@@ -1184,7 +1184,7 @@ function WebhookForm({
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">
+          <span className="font-mono text-[10px] text-text-muted">
             camera id (empty = every camera)
           </span>
           <input
@@ -1194,7 +1194,7 @@ function WebhookForm({
           />
         </label>
         <div className="block">
-          <span className="font-mono text-[10px] uppercase text-text-muted">
+          <span className="font-mono text-[10px] text-text-muted">
             signing secret — {hook ? (hook.secret_set ? 'set' : 'unset') : 'unset'}
           </span>
           <input
@@ -1219,7 +1219,7 @@ function WebhookForm({
         <button
           type="submit"
           disabled={saving}
-          className="border border-accent px-3 py-1 font-cap text-xs uppercase tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
+          className="border border-accent px-3 py-1 text-xs font-semibold tracking-cap text-accent disabled:border-rule disabled:text-text-muted"
         >
           {saving ? 'saving' : hook ? 'save webhook' : 'add webhook'}
         </button>
@@ -1325,7 +1325,7 @@ function RetentionTab() {
         <tbody>
           {rows.map((row) => (
             <tr key={row.label} className="border-b border-rule last:border-b-0">
-              <th className="px-3 py-1.5 text-left font-mono text-xs font-normal uppercase text-text-muted">
+              <th className="px-3 py-1.5 text-left font-mono text-xs font-normal text-text-muted">
                 {row.label}
               </th>
               <td className="px-3 py-1.5 font-mono text-xs text-text-primary">{row.value}</td>

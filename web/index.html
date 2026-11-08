@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,6 +9,20 @@
       content="nvrWay — self-hosted NVR for 4-8 cameras: what is happening right now, the proof of what happened, and durable media on your own storage."
     />
     <title>nvrWay</title>
+    <script>
+      // Day and night are honestly equal: the room decides first
+      // (prefers-color-scheme), the operator's toggle outranks it, and the
+      // choice is written before first paint so neither theme ever flashes.
+      (function () {
+        try {
+          var saved = localStorage.getItem('nvr-theme');
+          var dark = saved ? saved === 'night' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
   </head>
   <body class="bg-bg text-text-primary font-sans antialiased">
     <div id="root"></div>

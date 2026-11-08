@@ -62,7 +62,10 @@ type PageState =
 const SEVERITY: Record<number, string> = {
   1: 'border-severity-1 text-severity-1',
   2: 'border-severity-2 text-severity-2',
-  3: 'border-severity-3 text-severity-3',
+  // Top of scale is the red field itself — the same field the live tile's
+  // back face wears. A text-tinted outline would make the list disagree with
+  // the wall about what "call somebody" looks like.
+  3: 'border-field-red bg-field-red text-field-red-ink',
 };
 
 function severityClass(severity: number): string {
@@ -132,7 +135,7 @@ function EventCard({
 
       <div className="flex flex-wrap items-center gap-2 px-3 pb-3">
         <span
-          className={`flex h-6 w-6 items-center justify-center rounded-full border-2 font-mono text-xs ${severityClass(
+          className={`flex h-6 w-6 items-center justify-center border-2 font-mono text-xs ${severityClass(
             event.severity,
           )}`}
           title={`severity ${event.severity}`}
@@ -141,7 +144,7 @@ function EventCard({
         </span>
 
         {event.open ? (
-          <span className="font-cap text-xs uppercase tracking-cap text-accent">LIVE</span>
+          <span className="text-xs font-semibold tracking-cap text-accent">live</span>
         ) : null}
 
         <span className="font-mono text-xs text-text-secondary">
@@ -262,7 +265,7 @@ export default function EventsPage() {
 
   return (
     <main className="p-6">
-      <h1 className="font-cap text-2xl uppercase tracking-cap text-text-primary">Events</h1>
+      <h1 className="text-3xl font-light tracking-cap text-text-primary">Events</h1>
 
       <form
         className="mt-4 flex flex-wrap items-center gap-2"
@@ -280,12 +283,12 @@ export default function EventsPage() {
         />
         <button
           type="submit"
-          className="border border-accent px-2 py-1 font-cap text-xs uppercase tracking-cap text-accent"
+          className="border border-accent px-2 py-1 text-xs font-semibold tracking-cap text-accent"
         >
           search
         </button>
 
-        <span className="ml-2 font-cap text-xs uppercase tracking-cap text-text-muted">
+        <span className="ml-2 text-xs font-semibold tracking-cap text-text-muted">
           severity
         </span>
         {[1, 2, 3].map((level) => (

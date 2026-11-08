@@ -101,7 +101,7 @@ export default function LoginPage() {
   if (status.kind === 'failed') {
     return (
       <main className="max-w-sm p-8">
-        <h1 className="font-cap text-2xl tracking-cap uppercase">Sign in</h1>
+        <h1 className="text-3xl font-light tracking-cap">Sign in</h1>
         <p className="mt-4 text-status-error">Could not read the sign-in methods.</p>
         <p className="mt-1 text-sm text-text-secondary">{status.reason}</p>
         <button
@@ -120,7 +120,7 @@ export default function LoginPage() {
 
   return (
     <main className="max-w-sm p-8">
-      <h1 className="font-cap text-2xl tracking-cap uppercase">Sign in</h1>
+      <h1 className="text-3xl font-light tracking-cap">Sign in</h1>
 
       {nothingOffersAWayIn && (
         <p className="mt-4 text-status-warning">
@@ -131,7 +131,7 @@ export default function LoginPage() {
       {localLogin && (
         <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm" htmlFor="login-username">
-            <span className="tracking-cap uppercase text-text-secondary">Username</span>
+            <span className="text-xs font-semibold tracking-cap text-text-secondary">Username</span>
             <input
               id="login-username"
               name="username"
@@ -142,7 +142,7 @@ export default function LoginPage() {
             />
           </label>
           <label className="flex flex-col gap-1 text-sm" htmlFor="login-password">
-            <span className="tracking-cap uppercase text-text-secondary">Password</span>
+            <span className="text-xs font-semibold tracking-cap text-text-secondary">Password</span>
             <input
               id="login-password"
               name="password"

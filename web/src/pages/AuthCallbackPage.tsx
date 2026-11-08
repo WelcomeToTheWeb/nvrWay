@@ -100,7 +100,7 @@ export default function AuthCallbackPage() {
 
   return (
     <main className="max-w-md p-8">
-      <h1 className="font-cap text-2xl tracking-cap uppercase">Sign in</h1>
+      <h1 className="text-3xl font-light tracking-cap">Sign in</h1>
 
       {handoff.kind === 'refused' && (
         <>

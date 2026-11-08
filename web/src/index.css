@@ -11,85 +11,178 @@
    drawing — so the names are the facts, and the values live here where
    one change restyles the whole console.
 
-   Night is the default rendition (index.html ships class="dark"): THE WALL
-   is a dark room with cameras on it. The day rendition is the same roles
-   on paper, for a console opened in daylight.
+   The world is Metro Tiles: flat saturated fields, zero radius, zero
+   shadow, hairline gaps, one family at four weights. Night is a black
+   concourse lit by its tiles; day is the same tiles on white concourse
+   stone. Neither is the default — the machine picks from the room
+   (prefers-color-scheme) and the operator's toggle outranks it.
 
-   This is the scaffold's palette: enough that every token the bridge names
-   resolves to a real colour, and no more. A visual pass over density,
-   surfaces and type is console work, not scaffold work.
+   Colour does real jobs: cyan is the operator's mark and the live field,
+   red is a camera down or an intrusion, amber is degraded, green is a
+   closed segment. Secondary text on a coloured field tints from that
+   field's own hue — never gray-on-colour.
    ===================================================================== */
 
+/* The world's voice, self-hosted beside the page (public/fonts). */
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 300; font-display: swap; src: url('/fonts/archivo-300.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/archivo-400.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/archivo-600.woff2') format('woff2'); }
+@font-face { font-family: 'Archivo'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/archivo-700.woff2') format('woff2'); }
+@font-face { font-family: 'JetBrains Mono'; font-style: normal; font-weight: 100 800; font-display: swap; src: url('/fonts/jbmono-var.woff2') format('woff2-variations'); }
+
 :root {
-  /* paper */
-  --bg-primary: #f4f5f7;
-  --bg-secondary: #eceef2;
+  /* day: white concourse stone, black ink */
+  --bg-primary: #f2f2f2;
+  --bg-secondary: #e4e4e4;
   --bg-card: #ffffff;
-  --bg-border: #d4d9e0;
-  --text-primary: #15181d;
-  --text-secondary: #4b525c;
-  --text-muted: #6d747e;
+  --bg-border: #c7c7c7;
+  --text-primary: #000000;
+  --text-secondary: #3d3d3d;
+  --text-muted: #5c5c5c;
 
-  /* rules */
-  --rule: #d4d9e0;
-  --rule-strong: #9aa2ad;
+  /* rules: hairlines between fields */
+  --rule: #c7c7c7;
+  --rule-strong: #8a8a8a;
 
-  /* the operator's mark: a drawn zone, a dragged vertex, the LIVE row */
-  --accent: #1f5fbf;
-  --accent-light: #4a86d8;
-  --accent-dark: #17458c;
+  /* the operator's mark and the live field: Metro cyan.
+     Day rides darker so `text-accent` (active nav, links) clears AA on white;
+     the zone editor paints it at 20% either way. */
+  --accent: #00727a;
+  --accent-light: #00b7c3;
+  --accent-dark: #00585e;
 
   /* a camera's truth, from camera.status */
-  --online: #1a7f37;
-  --offline: #6d747e;
-  --warning: #9a6700;
-  --error: #cf222e;
+  --online: #007a33;
+  --offline: #5c5c5c;
+  --warning: #7a5800;
+  --error: #b00e00;
 
   /* an event's severity: 1 noted, 2 noteworthy, 3 call somebody,
      4 intrusion, 5 intrusion in the home */
-  --severity-1: #6d747e;
-  --severity-2: #9a6700;
-  --severity-3: #bc5a1d;
-  --severity-4: #d12d1a;
-  --severity-5: #a5111b;
+  --severity-1: #5c5c5c;
+  --severity-2: #7a5800;
+  --severity-3: #a8480a;
+  --severity-4: #b00e00;
+  --severity-5: #7e0a00;
 
-  --focus: #1f5fbf;
+  /* the tile fields themselves */
+  --field-cyan: #00b7c3;
+  --field-cyan-ink: #00282c;
+  --field-red: #b00e00;
+  --field-red-ink: #ffffff;
+  --field-green: #007a33;
+  --field-green-ink: #ffffff;
+  --field-amber: #e8a112;
+  --field-amber-ink: #241a00;
+
+  --focus: #00727a;
+  --sel-bg: #00b7c3;
+  --sel-ink: #00282c;
+  --scroll-thumb: #b5b5b5;
 }
 
 .dark {
-  /* graphite, lit by the wall */
-  --bg-primary: #101317;
-  --bg-secondary: #0b0d10;
-  --bg-card: #171b21;
-  --bg-border: #262c34;
-  --text-primary: #e6e9ee;
-  --text-secondary: #a7afba;
-  --text-muted: #6f7883;
+  /* night: black concourse, the tiles do the lighting */
+  --bg-primary: #000000;
+  --bg-secondary: #0d0d0d;
+  --bg-card: #161616;
+  --bg-border: #333333;
+  --text-primary: #f2f2f2;
+  --text-secondary: #c2c2c2;
+  --text-muted: #9a9a9a;
 
-  --rule: #262c34;
-  --rule-strong: #3c444e;
+  --rule: #333333;
+  --rule-strong: #5c5c5c;
 
-  --accent: #4a9eff;
-  --accent-light: #7ab8ff;
-  --accent-dark: #2f74c4;
+  --accent: #00b7c3;
+  --accent-light: #4fd6e0;
+  --accent-dark: #008e97;
 
   --online: #2ea043;
-  --offline: #6f7883;
-  --warning: #d29922;
-  --error: #f0544c;
+  --offline: #9a9a9a;
+  --warning: #e8a112;
+  --error: #ff4b3e;
 
-  --severity-1: #6f7883;
-  --severity-2: #b08800;
-  --severity-3: #e3873c;
-  --severity-4: #f0653a;
-  --severity-5: #e5484d;
+  --severity-1: #9a9a9a;
+  --severity-2: #e8a112;
+  --severity-3: #ff8b3d;
+  --severity-4: #ff5143;
+  --severity-5: #ff2626;
 
-  --focus: #4a9eff;
+  --field-cyan: #00b7c3;
+  --field-cyan-ink: #00282c;
+  --field-red: #b00e00;
+  --field-red-ink: #ffffff;
+  --field-green: #007a33;
+  --field-green-ink: #ffffff;
+  --field-amber: #e8a112;
+  --field-amber-ink: #241a00;
+
+  --focus: #00b7c3;
+  --sel-bg: #00b7c3;
+  --sel-ink: #00282c;
+  --scroll-thumb: #3d3d3d;
 }
 
 @layer base {
   *:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 1px;
+  }
+
+  /* The parts nobody draws: selection, caret, scrollbar — themed from the
+     world's own cyan so no browser default belongs to no design system. */
+  ::selection {
+    background: var(--sel-bg);
+    color: var(--sel-ink);
+  }
+
+  html {
+    caret-color: var(--accent);
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
+
+  input,
+  select,
+  textarea {
+    border-radius: 0;
+  }
+}
+
+@layer components {
+  /* The tile: the world's atom. A flat field separated from its neighbours
+     by the ground showing through the gap — no outline, no shadow, no
+     radius. State rides in the field colour. */
+  .tile {
+    background: var(--bg-card);
+  }
+
+  /* The signature move: the Metro flip. A tile turns once on its Y axis to
+     show a face it never had, then turns back. Exponential ease-out. */
+  .flip-scene {
+    perspective: 1400px;
+  }
+  .flip-inner {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 600ms cubic-bezier(0.16, 0.84, 0.24, 1);
+  }
+  .flip-inner.flipped {
+    transform: rotateY(180deg);
+  }
+  .flip-face {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  .flip-back {
+    position: absolute;
+    inset: 0;
+    transform: rotateY(180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flip-inner {
+      transition: none;
+    }
   }
 }

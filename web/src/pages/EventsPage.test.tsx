@@ -270,17 +270,17 @@ describe('EventsPage — a card is the proof', () => {
 });
 
 describe('EventsPage — the feed keeps the cards honest', () => {
-  it('shows LIVE for an open event', async () => {
+  it('shows live for an open event', async () => {
     const h = attachHarness(server([event({ open: true, ended_at: '' })]));
     renderAt('/events');
-    expect(await screen.findByText('LIVE')).toBeTruthy();
+    expect(await screen.findByText('live')).toBeTruthy();
     h.restore();
   });
 
   it('moves a card from an event.update frame, with no request to the server', async () => {
     const h = attachHarness(server([event({ open: true, ended_at: '' })]));
     renderAt('/events');
-    await screen.findByText('LIVE');
+    await screen.findByText('live');
     const before = h.calls.length;
 
     act(() =>
@@ -294,14 +294,14 @@ describe('EventsPage — the feed keeps the cards honest', () => {
     h.restore();
   });
 
-  it('takes LIVE away when the close frame says the event is over', async () => {
+  it('takes live away when the close frame says the event is over', async () => {
     const h = attachHarness(server([event({ open: true, ended_at: '' })]));
     renderAt('/events');
-    await screen.findByText('LIVE');
+    await screen.findByText('live');
 
     act(() => useRealtime.setState({ events: { e1: { id: 'e1', open: false } } }));
 
-    await waitFor(() => expect(screen.queryByText('LIVE')).toBeNull());
+    await waitFor(() => expect(screen.queryByText('live')).toBeNull());
     h.restore();
   });
 

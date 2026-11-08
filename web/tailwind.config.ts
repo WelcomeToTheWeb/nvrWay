@@ -56,30 +56,43 @@ const config: Config = {
           DEFAULT: 'var(--rule)',
           strong: 'var(--rule-strong)',
         },
+        /* the world's trouble fields — state lives in these fills, and the
+           same fact must read identical on a tile back and a list badge */
+        field: {
+          red: 'var(--field-red)',
+          'red-ink': 'var(--field-red-ink)',
+          amber: 'var(--field-amber)',
+          'amber-ink': 'var(--field-amber-ink)',
+        },
       },
-      // No faces are vendored yet: the stack names the intent and falls back
-      // to the system UI font. Vendoring self-hosted woff2 files later is a
-      // change to this block and a fonts.css, never to a component.
+      // The world's voice is Archivo, self-hosted in public/fonts and loaded
+      // from src/index.css: weight 300 carries display numerals and the
+      // wordmark, 600/700 carry labels and data. `cap` keeps its name (the
+      // pages use it for labels) but is no longer a narrow stamp face —
+      // Metro states labels with weight, not uppercase tracking.
       fontFamily: {
-        sans: ['Barlow', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans: ['Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
-        cap: ['"Archivo Narrow"', 'Barlow', 'ui-sans-serif', 'sans-serif'],
+        cap: ['Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
-      /* Letterpress corners: rules meet at right angles, never balloons. */
+      /* Metro fields: zero radius everywhere. A tile is a rectangle. */
       borderRadius: {
         none: '0',
-        sm: '2px',
-        DEFAULT: '2px',
-        md: '2px',
-        lg: '3px',
-        xl: '3px',
-        '2xl': '4px',
-        '3xl': '6px',
-        full: '9999px',
+        sm: '0',
+        DEFAULT: '0',
+        md: '0',
+        lg: '0',
+        xl: '0',
+        '2xl': '0',
+        '3xl': '0',
+        /* even `full` is zero: a Metro tile has no circle. The one shape
+           this world draws is the rectangle; leaving 9999px here is the
+           hole a future rounded-full would fall through. */
+        full: '0',
       },
       letterSpacing: {
-        cap: '0.09em',
-        stamp: '0.14em',
+        cap: '0.01em',
+        stamp: '0.02em',
       },
       transitionTimingFunction: {
         overshoot: 'cubic-bezier(0.34, 1.56, 0.64, 1)',

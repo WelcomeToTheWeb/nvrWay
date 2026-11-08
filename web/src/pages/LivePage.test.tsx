@@ -95,11 +95,11 @@ function tiles(container: HTMLElement): HTMLElement[] {
 }
 
 describe('LivePage', () => {
-  it('asks the server for the media host and for the cameras', async () => {
+  it('asks the server for the media host, the cameras, and today\'s count', async () => {
     const h = attachHarness(ok);
     render(<LivePage />);
     await waitFor(() => expect(started).toHaveLength(2));
-    expect(h.calls.map((c) => c.url).sort()).toEqual(['/v1/cameras', '/v1/settings/live']);
+    expect(h.calls.map((c) => c.url).sort()).toEqual(['/v1/cameras', '/v1/events', '/v1/settings/live']);
     h.restore();
   });
 
@@ -130,7 +130,12 @@ describe('LivePage', () => {
     });
 
     expect(screen.getByText('offline')).toBeTruthy();
-    expect(screen.getByText('webrtc/offer: stream not found')).toBeTruthy();
+    // The tile states the condition in its own sentence; go2rtc's raw words
+    // ride on the sentence as its tooltip — present for the operator who
+    // wants the diagnosis, not printed over the field.
+    expect(screen.getByText('offline').getAttribute('title')).toBe(
+      'webrtc/offer: stream not found',
+    );
     h.restore();
   });
 
@@ -164,7 +169,7 @@ describe('LivePage', () => {
     h.restore();
   });
 
-  it('repeats the server\'s own sentence when the installation has no media host', async () => {
+  it('says the problem and the first move when the installation has no media host, with the server\'s words on the sentence', async () => {
     const refusal = {
       error: 'GO2RTC_PUBLIC_URL is not configured, so this installation has no media host to name',
     };
@@ -173,7 +178,8 @@ describe('LivePage', () => {
     );
     render(<LivePage />);
 
-    expect(await screen.findByText(refusal.error)).toBeTruthy();
+    const sentence = await screen.findByText(/record could not be read/);
+    expect(sentence.getAttribute('title')).toBe(refusal.error);
     // Without a media host there is nothing to stream from, so no player starts.
     expect(started).toHaveLength(0);
     h.restore();
@@ -192,7 +198,8 @@ describe('LivePage', () => {
   it('names a refused camera list instead of showing nothing', async () => {
     const h = attachHarness((call) => (call.url.includes('cameras') ? UNAUTHORIZED : ok(call)));
     render(<LivePage />);
-    expect(await screen.findByText(/access token is not valid/i)).toBeTruthy();
+    const sentence = await screen.findByText(/record could not be read/);
+    expect(sentence.getAttribute('title')).toMatch(/access token is not valid/i);
     h.restore();
   });
 
@@ -255,7 +262,7 @@ describe('LivePage — the recorder line', () => {
   it('moves when the feed moves, and asks the server for nothing to do it', async () => {
     const h = attachHarness(ok);
     const { container } = render(<LivePage />);
-    await waitFor(() => expect(h.calls).toHaveLength(2));
+    await waitFor(() => expect(h.calls).toHaveLength(3));
 
     act(() => useRealtime.setState({ recorders: { c1: status('c1', '2026-11-06T20:46:12Z') } }));
     const first = tiles(container)[0].textContent ?? '';
@@ -266,9 +273,9 @@ describe('LivePage — the recorder line', () => {
     expect(first).toContain(clock('2026-11-06T20:46:12Z'));
     expect(second).toContain(clock('2026-11-06T20:46:17Z'));
     expect(second).not.toContain(clock('2026-11-06T20:46:12Z'));
-    // The status line is the feed's, so the wall still made exactly the two
+    // The status line is the feed's, so the wall still made exactly the three
     // requests it makes on its own. This is the card's "no polling".
-    expect(h.calls.map((c) => c.url).sort()).toEqual(['/v1/cameras', '/v1/settings/live']);
+    expect(h.calls.map((c) => c.url).sort()).toEqual(['/v1/cameras', '/v1/events', '/v1/settings/live']);
     h.restore();
   });
 
