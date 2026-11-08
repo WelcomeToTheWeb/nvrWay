@@ -128,7 +128,7 @@ if [ "$detector_rc" -ne 0 ] || [ -z "$detector_total" ]; then
     echo "coverage: tcp auth probe (psql as the compose file's credentials):" >&2
     docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" \
         run --rm --no-deps --entrypoint sh postgres -c \
-        'psql "postgresql://nvr:***@postgres:5432/nvr?sslmode=disable" -c "select 1"' >&2 \
+        'psql "postgresql://nvr:nvr@postgres:5432/nvr?sslmode=disable" -c "select 1"' >&2 \
         || echo "coverage: probe REJECTED (postgres runtime password differs)" >&2
     # And the containers' actual runtime env, hashed so the dump is safe to
     # paste: a mismatch between the server's DSN password and the postgres

@@ -155,7 +155,7 @@ services:
         required: false
     environment:
       SERVER_PORT: ":8080"
-      DATABASE_URL: "postgresql://nvr:***@postgres:5432/nvr?sslmode=disable"
+      DATABASE_URL: "postgresql://nvr:nvr@postgres:5432/nvr?sslmode=disable"
       DATA_DIR: /var/lib/nvr
       GO2RTC_URL: "http://go2rtc:1984"
       GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
