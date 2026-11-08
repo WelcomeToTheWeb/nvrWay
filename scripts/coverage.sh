@@ -86,7 +86,7 @@ fi
 echo "coverage: server total = ${server_total:-n/a}%"
 
 # ---- detector ----------------------------------------------------------------
-env_file="$repo_root/docker/.env"
+env_file="$repo_root/.env"
 if [ ! -f "$env_file" ]; then
     env_file=/tmp/nvr-coverage.env
     {
@@ -100,11 +100,11 @@ if [ ! -f "$env_file" ]; then
         echo "VERSION=coverage"
         echo "GIT_COMMIT=coverage"
     } > "$env_file"
-    echo "coverage: docker/.env is missing — using a throwaway $env_file"
+    echo "coverage: .env is missing — using a throwaway $env_file"
 fi
 
 echo "coverage: detector — pytest --cov in the detector image (not slow)"
-docker compose -f "$repo_root/docker/docker-compose.yml" --env-file "$env_file" \
+docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" \
     run --rm detector sh -c \
     'pip install --quiet --disable-pip-version-check --target=/tmp/pcov pytest-cov >/dev/null &&
      PYTHONPATH=/tmp/pcov python -m pytest -m "not slow" -q --cov=nvr_detector --cov-report=term 2>&1 |

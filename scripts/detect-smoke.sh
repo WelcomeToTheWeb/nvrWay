@@ -37,7 +37,7 @@ repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # compose needs an env file to interpolate even for `run`; a fresh clone has
 # only the example, so fall back to a throwaway one with the keys the file
 # references. The smoke asserts nothing about these values.
-env_file="$repo_root/docker/.env"
+env_file="$repo_root/.env"
 if [ ! -f "$env_file" ]; then
     env_file=/tmp/nvr-detect-smoke.env
     {
@@ -51,10 +51,10 @@ if [ ! -f "$env_file" ]; then
         echo "VERSION=detect-smoke"
         echo "GIT_COMMIT=detect-smoke"
     } > "$env_file"
-    echo "detect-smoke: docker/.env is missing — using a throwaway $env_file"
+    echo "detect-smoke: .env is missing — using a throwaway $env_file"
 fi
 
-compose() { docker compose -f "$repo_root/docker/docker-compose.yml" --env-file "$env_file" "$@"; }
+compose() { docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" "$@"; }
 
 if [ ! -f "$repo_root/testdata/bus.jpg" ]; then
     echo "detect-smoke: testdata/bus.jpg missing — fetching the pinned fixture"

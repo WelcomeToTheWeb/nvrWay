@@ -1,6 +1,6 @@
 # nvrWay — production compose (image-based)
 #
-# The deployment file: same services as docker/docker-compose.yml, but every
+# The deployment file: same services as docker-compose.yml, but every
 # nvrWay image comes from the registry — no build sections, so this file runs
 # on a host with no source checkout. The dev file is for development; this one
 # is what docs/installation.md tells an operator to run.
@@ -102,12 +102,24 @@ services:
         condition: service_healthy
       go2rtc:
         condition: service_healthy
+    # The whole server config surface arrives through env_file (see the same
+    # block in docker-compose.yml for the drift this closes). What stays in
+    # the environment block is deliberate: the in-network wiring compose
+    # owns, and the `${VAR:?}` gates — env_file delivers values, but only
+    # interpolation can refuse to resolve the file, naming what is missing
+    # (S9-05's compile-time gate). The ungated pass-throughs the old block
+    # hand-listed are gone: env_file delivers them, and the server's own
+    # defaults are the ones docs/configuration.md documents. `required: false`
+    # only serves the single-service `compose run` scripts on a checkout with
+    # no .env; a real deployment has one, and the gates above refuse to boot
+    # without its values.
+    env_file:
+      - path: .env
+        required: false
     environment:
       SERVER_PORT: ":8080"
       DATABASE_URL: "postgresql://nvr:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required in production}@postgres:5432/nvr?sslmode=disable"
       JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required in production: an empty one is random per boot, so every restart logs everyone out}"
-      NVR_SECRET_KEY: "${NVR_SECRET_KEY:-}"
-      DATA_DIR: /var/lib/nvr
       GO2RTC_URL: "http://go2rtc:1984"
       GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
       GO2RTC_USERNAME: ${GO2RTC_USERNAME:?GO2RTC_USERNAME is required in production}
@@ -117,10 +129,7 @@ services:
       # localhost URL is a live view that works on the server and nowhere else.
       GO2RTC_PUBLIC_URL: "${GO2RTC_PUBLIC_URL:?GO2RTC_PUBLIC_URL is required in production: it is the origin the browser dials for live view}"
       WORKER_TOKEN: "${WORKER_TOKEN:?WORKER_TOKEN is required in production: an empty one disables the internal API the detector lives on}"
-      BOOTSTRAP_ADMIN_USER: "${BOOTSTRAP_ADMIN_USER:-admin}"
-      BOOTSTRAP_ADMIN_PASSWORD: "${BOOTSTRAP_ADMIN_PASSWORD:-}"
-      WEB_URL: "${WEB_URL:-http://localhost:3000}"
-      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      DATA_DIR: /var/lib/nvr
       TZ: UTC
     ports:
       - "8080:8080"

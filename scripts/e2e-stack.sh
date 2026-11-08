@@ -14,7 +14,7 @@
 #   stop     tear it down: kill both processes, remove the container and its
 #            config volume, delete the run directory
 #
-# It is a *separate* stack from docker/docker-compose.yml and never touches a
+# It is a *separate* stack from docker-compose.yml and never touches a
 # dev database: DATABASE_URL is `sqlite://` under /tmp, the media directories
 # are under /tmp, the go2rtc is its own container on its own ports, and the
 # secrets are generated per run and written to the state file. One e2e stack
@@ -126,7 +126,7 @@ restart)
     # docs/configuration.md. A green live spec here is coverage of the
     # no-auth path only, and must not be read as coverage of the other.
     log "starting go2rtc ($container) on 127.0.0.1:1985/18555"
-    # Same seed + supervisor as docker/docker-compose.yml (P-15, P-16): the
+    # Same seed + supervisor as docker-compose.yml (P-15, P-16): the
     # template puts api.origin:"*" on disk before go2rtc starts, and the
     # supervisor exits when the server re-renders the file so the container
     # boots the new config (go2rtc never reloads one in place). The explicit

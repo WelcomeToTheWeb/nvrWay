@@ -4,7 +4,7 @@
 #
 # Usage: scripts/dev.sh [--demo] [--down] [--logs [SERVICE]]
 #
-#   docker compose -f docker/docker-compose.yml up -d --build
+#   docker compose -f docker-compose.yml up -d --build
 #   --demo : seed the demo camera through the public API and print the console
 #            URL. The seeder is an API client, never a DB writer — seeding
 #            exercises the same path an operator uses (login, POST camera,
@@ -28,28 +28,29 @@ usage() {
 Usage: scripts/dev.sh [--demo] [--down] [--logs [SERVICE]]
 
   --demo   start the stack and seed the demo camera through the public API
-  --down   docker compose -f docker/docker-compose.yml down
+  --down   docker compose -f docker-compose.yml down
   --logs   follow the stack's logs (optionally: --logs server)
 TXT
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="$repo_root/docker/docker-compose.yml"
-env_file="$repo_root/docker/.env"
+compose_file="$repo_root/docker-compose.yml"
+env_file="$repo_root/.env"
 api="http://127.0.0.1:8080"
 console="http://localhost:3000"
 
 compose() { docker compose -f "$compose_file" --env-file "$env_file" "$@"; }
 
 if [ ! -f "$env_file" ]; then
-    # A fresh clone has no docker/.env (it is gitignored). The example carries
+    # A fresh clone has no .env (it is gitignored). The dev example carries
     # dev credentials on purpose, so copying it is the no-manual-setup path;
-    # production never runs this script (docs/installation.md).
-    if [ -f "$repo_root/docker/.env.example" ]; then
-        cp "$repo_root/docker/.env.example" "$env_file"
-        echo "dev.sh: created $env_file from docker/.env.example — dev credentials, edit it for anything real"
+    # production never runs this script (docs/installation.md, which seeds
+    # the same .env from the full .env.example table instead).
+    if [ -f "$repo_root/.env.dev.example" ]; then
+        cp "$repo_root/.env.dev.example" "$env_file"
+        echo "dev.sh: created $env_file from .env.dev.example — dev credentials, edit it for anything real"
     else
-        echo "dev.sh: $env_file is missing and docker/.env.example is not there to seed it" >&2
+        echo "dev.sh: $env_file is missing and .env.dev.example is not there to seed it" >&2
         exit 1
     fi
 fi
@@ -75,7 +76,7 @@ seed_demo() {
     local admin_user admin_pass
     admin_user="$(env_get BOOTSTRAP_ADMIN_USER)"; admin_user="${admin_user:-admin}"
     admin_pass="$(env_get BOOTSTRAP_ADMIN_PASSWORD)"
-    [ -n "$admin_pass" ] || { echo "dev.sh: BOOTSTRAP_ADMIN_PASSWORD is empty in docker/.env — cannot log in to seed" >&2; return 1; }
+    [ -n "$admin_pass" ] || { echo "dev.sh: BOOTSTRAP_ADMIN_PASSWORD is empty in .env — cannot log in to seed" >&2; return 1; }
 
     echo "demo: logging in as $admin_user"
     token=$(curl -fsS -X POST "$api/api/auth/login" \
@@ -198,7 +199,7 @@ sys.exit(0 if ok else 1)
         fi
         if [ "$attempt" = 18 ]; then
             echo "dev.sh: the demo camera never came online: $probe_json" >&2
-            echo "dev.sh: the exec source reads /fixtures/bus.jpg inside the go2rtc container — check: docker compose -f docker/docker-compose.yml exec go2rtc ls /fixtures" >&2
+            echo "dev.sh: the exec source reads /fixtures/bus.jpg inside the go2rtc container — check: docker compose -f docker-compose.yml exec go2rtc ls /fixtures" >&2
             return 1
         fi
         sleep 5

@@ -85,10 +85,12 @@ The rules a reviewer enforces, each with the reason:
 
 ## Installing locally
 
-The quick start as the README states it: copy `.env.example` to `.env`, fill
-`JWT_SECRET` / `NVR_SECRET_KEY` / `WORKER_TOKEN` with `openssl rand -hex 32`,
-`scripts/dev.sh --demo`, console on `:3000`, API on `:8080`, go2rtc on
-`:1984`. Expand this into a real walkthrough in `docs/installation.md`.
+The quick start as the README states it: `scripts/dev.sh --demo` — on a
+fresh clone it seeds `.env` from `.env.dev.example` (dev credentials,
+gitignored from then on), builds the stack, and seeds the demo camera.
+Console on `:3000`, API on `:8080`, go2rtc on `:1984`. A real deployment
+never runs this: `docs/installation.md` walks the prod compose with a `.env`
+copied from `.env.example` and generated secrets.
 
 ## Releasing
 

@@ -37,8 +37,8 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-compose_file="$repo_root/docker/docker-compose.yml"
-env_file="$repo_root/docker/.env"
+compose_file="$repo_root/docker-compose.yml"
+env_file="$repo_root/.env"
 api="http://127.0.0.1:8080"
 segment_seconds="${SEGMENT_SECONDS:-5}"
 
@@ -51,7 +51,7 @@ step() { printf '%sstep%s %s\n' "$yellow" "$off" "$1"; }
 env_get() { grep -E "^$1=" "$env_file" | tail -1 | cut -d= -f2- || true; }
 jget() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)" 2>/dev/null; }
 
-[ -f "$env_file" ] || { echo "verify.sh: docker/.env is missing — copy docker/.env.example" >&2; exit 1; }
+[ -f "$env_file" ] || { echo "verify.sh: .env is missing — copy .env.dev.example (dev) or .env.example (prod)" >&2; exit 1; }
 admin_pass="$(env_get BOOTSTRAP_ADMIN_PASSWORD)"
 
 # -- the stack must be up -----------------------------------------------------
@@ -101,7 +101,7 @@ token=$(curl -fsS -X POST "$api/api/auth/login" -H 'Content-Type: application/js
 if [ -n "$token" ]; then
     pass "2 access_token received (${#token} chars)"
 else
-    fail "2 login returned no access_token — is BOOTSTRAP_ADMIN_PASSWORD in docker/.env the one the server booted with?"
+    fail "2 login returned no access_token — is BOOTSTRAP_ADMIN_PASSWORD in .env the one the server booted with?"
     exit 1
 fi
 

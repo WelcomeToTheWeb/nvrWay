@@ -3,7 +3,7 @@
 # =============================================================================
 # Usage (from the repo root):
 #
-#   docker compose -f docker/docker-compose.yml -f docker-compose.gpu.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 #   docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up -d
 #
 # Both stacks BUILD the GPU image (stage 3 of docker/Dockerfile.detector) —
@@ -24,9 +24,11 @@
 
 services:
   detector:
-    # Complete build section on purpose: relative paths resolve against this
-    # file's directory (the repo root), which is the same build context the
-    # dev compose uses (`..` from docker/), so one section serves both stacks.
+    # Complete build section on purpose. Compose resolves every relative path
+    # against the BASE file's directory, never this override's own — so the
+    # base must be a repo-root file for `context: .` to mean the repo root.
+    # Both bases (docker-compose.yml, docker-compose.prod.yml) live here,
+    # which is what lets one section serve both stacks.
     build:
       context: .
       dockerfile: docker/Dockerfile.detector

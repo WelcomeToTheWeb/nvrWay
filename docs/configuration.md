@@ -2,7 +2,10 @@
 
 Every variable the server reads, its default, and what it means. Defaults are
 what the server runs with when the variable is **absent**; `.env.example` is
-this same table as an env file.
+this same table as an env file. Under compose the server container receives
+that whole file through `env_file`, so every row here is settable in `.env`
+— except the few the compose environment block owns and overrides
+(`SERVER_PORT`, `DATA_DIR`, `DATABASE_URL`), marked in `.env.example`.
 
 | Env | Default | Meaning |
 |---|---|---|
@@ -102,7 +105,7 @@ not remove the LAN exposure it would be protecting against. The honest
 choices are therefore: leave the credentials unset on a trusted network (the
 template's default, and what the e2e stack runs), or set them and
 reverse-proxy the sidecar so the proxy — not the browser — carries the auth.
-`docker/.env.example` ships them commented out with this trade stated.
+`.env.dev.example` ships them commented out with this trade stated.
 
 So the installation states it. Set it to the origin an outside machine uses —
 `http://192.168.1.20:8080`, or `https://cam.example.com/nvr` behind a reverse proxy

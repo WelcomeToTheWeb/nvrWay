@@ -40,18 +40,19 @@ docker pull ghcr.io/welcometotheweb/nvr/detector:latest
 
 `:latest` is a stable release; `:edge` follows `main`. Pin a tag for a fleet
 that must not move on its own. Build-your-own is first-class:
-`docker/docker-compose.yml` builds all three from this checkout (that is what
+`docker-compose.yml` builds all three from this checkout (that is what
 `scripts/dev.sh` does), and the prod compose is the same services with
 `image:` instead of `build:`.
 
 ## 2. Generate the secrets
 
-Three values must be random and secret:
+Four values must be random and secret:
 
 ```bash
 openssl rand -hex 32   # → JWT_SECRET
 openssl rand -hex 32   # → NVR_SECRET_KEY
 openssl rand -hex 32   # → WORKER_TOKEN
+openssl rand -base64 24   # → POSTGRES_PASSWORD
 ```
 
 What each one *not* being set costs:
@@ -71,16 +72,21 @@ What each one *not* being set costs:
 ## 3. Write the `.env`
 
 ```bash
-cp docker/.env.example .env
+cp .env.example .env
 ```
 
 Every variable and its default is the table in
-[`docs/configuration.md`](configuration.md). The deployment-only values —
-the ones whose dev defaults are wrong for a real install:
+[`docs/configuration.md`](configuration.md). The server container receives
+this whole file (`env_file` in the compose), so anything you set here
+arrives — the exceptions are `SERVER_PORT`, `DATA_DIR` and `DATABASE_URL`,
+which the compose environment block owns and overrides, and
+`POSTGRES_PASSWORD`, which the compose file itself consumes. The
+deployment-only values — the ones whose dev defaults are wrong for a real
+install:
 
 | Variable | Why it is deployment-only |
 |---|---|
-| `DATABASE_URL` | the default points at `localhost`; in compose it is `postgres://nvr:…@postgres:5432/nvr` |
+| `POSTGRES_PASSWORD` | **required in prod compose** (compose refuses to resolve without it): it sets the database password *and* builds the server's container DSN from it — the `.env` `DATABASE_URL` line is for the non-container paths only |
 | `DATA_DIR` | the media tree; make it a volume you back up |
 | `WEB_URL` | the origin the console is served from — the WS origin guard and the OIDC redirect URI are both built from it |
 | `GO2RTC_PUBLIC_URL` | **required in prod compose** (compose refuses to start without it): it is the address the *browser* dials for live view, and the server cannot guess it from inside the container |
@@ -305,7 +311,7 @@ failure mode this repo has lived through — `docs/gpu-on-lxc.md`).
 
 ```bash
 # from the repo root, either stack:
-docker compose -f docker/docker-compose.yml -f docker-compose.gpu.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 docker compose -f docker-compose.prod.yml -f docker-compose.gpu.yml up -d
 ```
 

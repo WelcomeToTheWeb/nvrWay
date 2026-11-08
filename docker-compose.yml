@@ -5,6 +5,13 @@
 # out below the way OurWay comments its agent service. `scripts/dev.sh` runs
 # this file; `docker-compose.prod.yml` is the deployment file.
 #
+# It lives at the repo root on purpose: compose resolves every relative path
+# (build contexts, bind mounts) and the default `.env` against the *base*
+# compose file's directory, so all three files — this one, the prod file, and
+# the GPU overlay — share one project directory and one `.env`. That is what
+# makes `-f docker-compose.yml -f docker-compose.gpu.yml` resolve the same way
+# it does with the prod base.
+#
 # Conventions copied from OurWay/docker/docker-compose.yml: named project,
 # `container_name: nvr-*`, `restart: unless-stopped`, json-file logging capped
 # at 10m x 3, a bridge network `nvr_net`, named volumes, and healthchecks that
@@ -77,11 +84,11 @@ services:
       # just wrote. A camera save therefore costs the sidecar a restart
       # (live tiles blink, recorders respawn on their own backoff) instead
       # of silently never taking effect.
-      - ./go2rtc.yaml.template:/go2rtc.seed.yaml:ro
+      - ./docker/go2rtc.yaml.template:/go2rtc.seed.yaml:ro
       # Demo-only (S10-02): the pinned fixture the demo camera's `exec:` source
       # reads, so a camera-free stack can be recorded and detected. Dev file,
-      # never in prod. Relative to this file, hence ../.
-      - ../testdata:/fixtures:ro
+      # never in prod.
+      - ./testdata:/fixtures:ro
     # $$ escapes compose interpolation: these $vars belong to the container's
     # shell, not to this file's env.
     command:
@@ -117,7 +124,7 @@ services:
 
   server:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile.server
       args:
         VERSION: ${VERSION:-0.1.0}
@@ -130,21 +137,28 @@ services:
         condition: service_healthy
       go2rtc:
         condition: service_healthy
+    # The whole server config surface arrives through env_file: every
+    # variable .env.example advertises reaches the container. The old
+    # hand-listed environment block passed 15 of the 39 — the rest (OIDC,
+    # retention, rate limits, WS_ORIGINS, segment/roll timings, media dirs,
+    # MJPEG tap sizing, PUBLIC_BASE_URL) were silently ignored, which is the
+    # drift this line closes. The block below keeps only what compose itself
+    # owns: the in-network wiring and the paths inside the container. Where
+    # both name a variable, environment wins over env_file (compose
+    # precedence). `required: false` keeps the fresh-clone scripts working:
+    # detect-smoke.sh and coverage.sh run one service with a throwaway
+    # --env-file and no .env, and compose resolves every service's env_file
+    # even then. scripts/dev.sh always seeds .env first, so the dev path
+    # never relies on the fallback.
+    env_file:
+      - path: .env
+        required: false
     environment:
       SERVER_PORT: ":8080"
-      DATABASE_URL: "postgresql://nvr:nvr@postgres:5432/nvr?sslmode=disable"
-      JWT_SECRET: ${JWT_SECRET:-}
-      NVR_SECRET_KEY: ${NVR_SECRET_KEY:-}
+      DATABASE_URL: "postgresql://nvr:***@postgres:5432/nvr?sslmode=disable"
       DATA_DIR: /var/lib/nvr
       GO2RTC_URL: "http://go2rtc:1984"
       GO2RTC_RTSP_URL: "rtsp://go2rtc:8554"
-      GO2RTC_USERNAME: ${GO2RTC_USERNAME:-}
-      GO2RTC_PASSWORD: ${GO2RTC_PASSWORD:-}
-      GO2RTC_PUBLIC_URL: ${GO2RTC_PUBLIC_URL:-http://localhost:1984}
-      WORKER_TOKEN: ${WORKER_TOKEN:-}
-      BOOTSTRAP_ADMIN_USER: ${BOOTSTRAP_ADMIN_USER:-admin}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
-      WEB_URL: ${WEB_URL:-http://localhost:3000}
       TZ: UTC
     ports:
       - "8080:8080"
@@ -166,7 +180,7 @@ services:
   # API, authenticated by WORKER_TOKEN.
   detector:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile.detector
       # Explicit, not "the last stage": the Dockerfile's final stage is the
       # GPU variant (S9-06), and a default build that silently became the
@@ -208,7 +222,7 @@ services:
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile.web
     image: nvr/web:latest
     container_name: nvr-web

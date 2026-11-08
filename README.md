@@ -49,7 +49,8 @@ server/       Go control plane: config, models, store, auth, sso, api, ws,
               media (recorder + clips), go2rtc, storage, sweeper
 detector/     Python detection worker (nvr_detector) + tests
 web/          React console (live, events, cameras, settings, audit)
-docker/       Dockerfiles (server, web, detector) + compose + go2rtc template
+docker/       Dockerfiles (server, web, detector) + go2rtc template (the three
+              compose files — dev, prod, GPU overlay — live at the repo root)
 testdata/     pinned fixtures (bus.jpg, yolov8n) — downloaded, not committed
 scripts/      dev.sh, verify.sh, detect-smoke.sh, e2e-stack.sh, coverage.sh
 docs/         architecture, configuration, api, installation, kanban (how the board works)
@@ -59,8 +60,7 @@ kanban/       the work board: KANBAN.md (generated) + cards/ (one per deliverabl
 ## Quick Start
 
 ```bash
-cp .env.example .env               # fill in JWT_SECRET, NVR_SECRET_KEY, WORKER_TOKEN
-scripts/dev.sh --demo             # compose up + a seeded demo camera, no hardware
+scripts/dev.sh --demo             # seeds .env from .env.dev.example, compose up, demo camera
 scripts/verify.sh                 # the acceptance gate: 9 observed passes
 scripts/detect-smoke.sh           # yolov8n.onnx + bus.jpg, CPU inference, in-image
 scripts/fetch-fixture.sh          # pinned assets into testdata/, byte counts verified
