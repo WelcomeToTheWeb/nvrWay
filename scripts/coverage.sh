@@ -115,6 +115,12 @@ detector_total=$(tail -1 "$out_dir/detector.total" 2>/dev/null)
 if [ "$detector_rc" -ne 0 ] || [ -z "$detector_total" ]; then
     echo "coverage: detector — FAILED (exit $detector_rc; tail of the log:)" >&2
     tail -20 "$out_dir/detector.log" >&2
+    # The events above name the dependency gate that failed, never why. A
+    # server that dies or hangs before its listener answers is only
+    # diagnosable from its own boot output — dump the stack's logs.
+    echo "coverage: dependency container logs:" >&2
+    docker compose -f "$repo_root/docker-compose.yml" --env-file "$env_file" \
+        logs --tail=80 server go2rtc postgres >&2 || true
     fail=1
     detector_total=""
 fi

@@ -78,6 +78,10 @@ printf '%s\n' "$out"
 
 if [ "$rc" -ne 0 ]; then
     echo "detect-smoke: FAILED — pytest exited $rc" >&2
+    # The events above name the dependency gate that failed, never why —
+    # same reason coverage.sh dumps the stack's own logs.
+    echo "detect-smoke: dependency container logs:" >&2
+    compose logs --tail=80 server go2rtc postgres >&2 || true
     exit 1
 fi
 if ! printf '%s\n' "$out" | grep -q "smoke ok"; then

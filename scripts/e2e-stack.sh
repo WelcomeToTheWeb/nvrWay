@@ -270,6 +270,13 @@ test)
     # shellcheck disable=SC1090
     . "$state_file"
     [ -d "$repo_root/web/e2e" ] || die "web/e2e/ does not exist yet — the Playwright specs are card S8-12"
+    # events.spec.ts embeds the pinned bus.jpg at import time (the snapshot
+    # fixture), and testdata assets are never committed (S10-01) — a fresh
+    # runner has none until the fetch script puts it there.
+    if [ ! -f "$repo_root/testdata/bus.jpg" ]; then
+        log "testdata/bus.jpg missing — fetching the pinned fixture"
+        "$repo_root/scripts/fetch-fixture.sh" bus.jpg || die "fetch-fixture.sh could not produce bus.jpg"
+    fi
     cd "$repo_root/web"
     export NVR_E2E_RUN_ID="$runid"
     export E2E_CONSOLE_URL="$console"

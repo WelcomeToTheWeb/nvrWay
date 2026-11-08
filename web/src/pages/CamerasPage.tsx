@@ -86,7 +86,10 @@ export default function CamerasPage() {
   const canDelete = hasRole('admin');
 
   const load = useCallback(() => {
-    setPage({ kind: 'reading' });
+    // Only the first read may blank the page. A refresh after a save must not
+    // unmount the editor mid-edit: it would drop the draft the operator is
+    // typing into the server's last known values.
+    setPage((current) => (current.kind === 'ready' ? current : { kind: 'reading' }));
     void client
       .get<{ cameras: CameraView[] }>('/v1/cameras')
       .then((response) => setPage({ kind: 'ready', cameras: response.data.cameras ?? [] }))
@@ -134,6 +137,10 @@ export default function CamerasPage() {
 
       {selected ? (
         <CameraEditor
+          // The row's id is the form's identity: switching cameras remounts with
+          // a fresh draft, while a refresh of the same row keeps what the
+          // operator has typed.
+          key={selected.id}
           camera={selected}
           canWrite={canWrite}
           canDelete={canDelete}
@@ -201,13 +208,10 @@ function CameraEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // A different row is a different form. Without this, editing one camera and
-  // clicking another leaves the first camera's numbers in the second's fields.
-  useEffect(() => {
-    setDraft(rowWrite(camera));
-    setZones(camera.zones ?? []);
-    setMessage(null);
-  }, [camera]);
+  // A different row is a different form — and the parent makes that true with
+  // `key={camera.id}`, so this component mounts fresh per row. An effect that
+  // reset state on `camera` identity instead would wipe the draft on every
+  // background refresh, which is how a save click raced itself to 'saved'.
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(rowWrite(camera)),
